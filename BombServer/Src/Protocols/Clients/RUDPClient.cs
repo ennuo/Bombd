@@ -54,8 +54,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SetKeepAlive(int interval)
         {
-            _keepAlive = new Timer(SendKeepAlive, new AutoResetEvent(false), 0, interval);
-            Logging.Log(typeof(RUDPClient), "Updated KeepAlive interval to {0}ms", LogType.Debug, interval);
+            
         }
         
         public void SendNetcodeData(BombXml xml)
@@ -117,7 +116,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Write(new byte[3]);
                 bw.Write(_seqNumber++);
 
-                var localTime = (int)Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds);
+                var localTime = (uint)(DateTime.UtcNow.Ticks / 10000);
                 bw.Write(localTime);
                 bw.Write(new byte[4]);
                 
@@ -127,12 +126,6 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 
             }
         }
-
-        void SendKeepAlive(object stateInfo)
-        {
-            if (!_hasCompletedHandshake) return;
-            SendKeepAlive();    //For timer  
-        } 
 
         public void SendReset()
         {
@@ -150,7 +143,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Write(new byte[2]);
                 bw.Write(sequence);
 
-                var localTime = (int)Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds);
+                var localTime = (uint)(DateTime.UtcNow.Ticks / 10000);
                 bw.Write(localTime);
                 bw.Write(new byte[4]);
                 
