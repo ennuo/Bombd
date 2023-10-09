@@ -36,7 +36,7 @@ namespace BombServerEmu_MNR.Src.Protocols
                 var data = Listener.Receive(ref ipEp);
                 if (!Connections.ContainsKey(ipEp))
                 {
-                    if ((EBombPacketType)data[0] == EBombPacketType.Sync)
+                    if ((EBombPacketType)data[0] == EBombPacketType.Handshake)
                     {
                         var client = new RUDPClient(Service, Listener, ipEp);
                         Connections.Add(ipEp, client);

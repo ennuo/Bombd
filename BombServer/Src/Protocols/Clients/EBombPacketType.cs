@@ -40,12 +40,12 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
     public enum EBombPacketType : byte
     {
         Acknowledge = 0x63,
-        KeepAlive = 0x61,
-        NetcodeData = 0x64,
+        ReliableNetcodeData = 0x64,
         ReliableGameData = 0x66,
         UnreliableGameData = 0x65,
-        Finish = 0x67, //This never seems to be used
+        VoipData = 0x67, //This never seems to be used
+        Handshake = 0x62,
+        KeepAlive = 0x61,
         Reset = 0x60,
-        Sync = 0x62
     }
 }

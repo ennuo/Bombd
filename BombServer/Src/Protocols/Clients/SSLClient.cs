@@ -69,7 +69,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendNetcodeData(BombXml xml)
         {
-            WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.NetcodeData);
+            WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.ReliableNetcodeData);
         }
 
         public byte[] GetRawData()
@@ -105,7 +105,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendSync()
         {
-            WriteSocket(new byte[0], EBombPacketType.Sync);
+            WriteSocket(new byte[0], EBombPacketType.Handshake);
         }
 
         public void Close()
@@ -128,7 +128,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             stream.Read(ref headerBuf, 0, headerBuf.Length);
             int len = BitConverter.ToInt32(headerBuf, 0x00).SwapBytes() - 20;
             var type = (EBombPacketType)headerBuf[20];
-            if (type == EBombPacketType.NetcodeData)
+            if (type == EBombPacketType.ReliableNetcodeData)
             {
                 byte[] buf = new byte[len];
                 int bytesRead = 0;

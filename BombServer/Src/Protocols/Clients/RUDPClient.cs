@@ -60,7 +60,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendNetcodeData(BombXml xml)
         {
-            WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.NetcodeData);
+            WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.ReliableNetcodeData);
         }
 
         public byte[] GetRawData()
@@ -96,7 +96,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendSync()
         {
-            WriteSocket(new byte[0], EBombPacketType.Sync);
+            WriteSocket(new byte[0], EBombPacketType.Handshake);
         }
 
         public void Close()
@@ -133,7 +133,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                             WriteSocket(new byte[0], EBombPacketType.Acknowledge);
                             break;
                         }
-                    case EBombPacketType.NetcodeData:
+                    case EBombPacketType.ReliableNetcodeData:
                         {
                             //byte[] buf = new byte[MAX_PAYLOAD_SIZE];
                             //int bytesRead = 0;
@@ -157,9 +157,9 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                             Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
                             break;
                         }
-                    case EBombPacketType.Finish: //Never used
+                    case EBombPacketType.VoipData: //Never used
                     case EBombPacketType.Reset:  //??? how to handle this? Its never used though
-                    case EBombPacketType.Sync:
+                    case EBombPacketType.Handshake:
                         WriteSocket(new byte[0], EBombPacketType.Acknowledge);
                         break;
                 }
@@ -177,21 +177,88 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 switch (packetType)
                 {
                     case EBombPacketType.Acknowledge:
+                        // 0x10 in size
+                        // char Protocol
+                        // char AckingProtocol
+                        // short pad
+                        // uint AckingSequenceNumber
+                        // uint LocalTime
+                        // uint Pad2
+
                         bw.Write((byte)lastPacketType);
                         bw.Write(new byte[14]);
                         break;
-                    case EBombPacketType.KeepAlive:
-                        Logging.Log(typeof(RUDPClient), "WriteSocket::KeepAlive: Unimplemented!", LogType.Error);
-                        break;
-                    case EBombPacketType.NetcodeData:
+                    case EBombPacketType.ReliableNetcodeData:
+                        // 0x410 in size
+                        // char Protocol
+                        // char GroupCompleteFlag
+                        // short GroupID
+                        // uint SequenceNumber
+                        // uint Checksum
+                        // uint Pad2
+                        // uchar Payload[1024]
                         Logging.Log(typeof(RUDPClient), "ReadSocket::NetcodeData: Unimplemented!", LogType.Error);
                         break;
                     case EBombPacketType.ReliableGameData:
+                        // 0x410 in size
+                        // char Protocol
+                        // char Source
+                        // char Destination
+                        // char GroupCompleteFlag
+                        // uint SequenceNumber
+                        // short GroupId
+                        // ushort GroupSizeBytes
+                        // ushort Checksum
+                        // short PayloadBytes
+                        // uchar Payload[1024]
                         Logging.Log(typeof(RUDPClient), "ReadSocket::ReliableGameData: Unimplemented!", LogType.Error);
                         break;
                     case EBombPacketType.UnreliableGameData:
+                        // 0x410 in size
+                        // char Protocol
+                        // char Source
+                        // short Destination
+                        // short PayloadBytes
+                        // ushort Checksum
+                        // uchar Payload[1032]
                         Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
                         break;
+                    case EBombPacketType.VoipData:
+                        // 0x410 in size
+                        // char Protocol
+                        // char Source
+                        // short Destination
+                        // uint SequenceNumber
+                        // uint Pad1
+                        // uint Pad2
+                        // char Payload[1024]
+
+                        Logging.Log(typeof(RUDPClient), "WriteSocket::VoipData: Unimplemented!", LogType.Error);
+                        break;
+                    case EBombPacketType.Handshake:
+                        // 0x14 in size
+                        // char Protocol
+                        // char pad
+                        // ushort Checksum
+                        // uint SequenceNumber
+                        // uint SessionId
+                        // uint SecretNum
+                        // uint GameDataSequenceNumber
+
+                        Logging.Log(typeof(RUDPClient), "WriteSocket::Handshake: Unimplemented!", LogType.Error);
+                        break;
+                    case EBombPacketType.KeepAlive:
+                        // 0x10 in size
+                        // char Protocol
+                        // char pad
+                        // short pad1
+                        // uint SequenceNumber
+                        // uint LocalTime
+                        // uint Pad2
+
+                        Logging.Log(typeof(RUDPClient), "WriteSocket::KeepAlive: Unimplemented!", LogType.Error);
+                        break;
+
                     case EBombPacketType.Reset:
                         Logging.Log(typeof(RUDPClient), "WriteSocket::Reset: Unimplemented!", LogType.Error);
                         Close();
