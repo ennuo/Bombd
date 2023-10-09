@@ -9,6 +9,7 @@ using System.IO;
 using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers;
+using BombServerEmu_MNR.Src.Services;
 
 namespace BombServerEmu_MNR.Src.Protocols.Clients
 {
@@ -85,7 +86,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                     bw.Flush();
                     
                     var packet = ms.ToArray();
-                    checksum = BombHMAC.GetMD532(packet, 0);
+                    checksum = BombHMAC.GetMD532(packet, GameManager.HashSalt);
                     packet[8] = (byte)((checksum >> 24) & 0xff);
                     packet[9] = (byte)((checksum >> 16) & 0xff);
                     packet[10] = (byte)((checksum >> 8) & 0xff);
@@ -120,7 +121,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             packet[4] = (byte)((payload.Length >> 8) & 0xff);
             packet[5] = (byte)(payload.Length & 0xff);
             
-            var checksum = BombHMAC.GetMD516(packet, 0);
+            var checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
             packet[6] = (byte)((checksum >> 8) & 0xff);
             packet[7] = (byte)(checksum & 0xff);
 
@@ -209,7 +210,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Flush();
 
                 var packet = ms.ToArray();
-                checksum = BombHMAC.GetMD516(packet, 0);
+                checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
                 packet[2] = (byte)(checksum >> 8);
                 packet[3] = (byte)(checksum & 0xff);
 
@@ -224,17 +225,12 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 SendReset();
             }
         }
-
+        
         public void UpdateOutgoingData()
         {
             // TODO: Keep track of lost packets and re-send if necessary here
         }
-
-        ~RUDPClient()
-        {
-            // TODO: Remove this connection from RUDP when its unused
-        }
-
+        
         public byte[] GetData(out EBombPacketType type)
         {
             if (!Block())

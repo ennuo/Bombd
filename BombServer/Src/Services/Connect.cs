@@ -25,7 +25,6 @@ namespace BombServerEmu_MNR.Src.Services
             if (service.IsDirectConnect) {
                 Logging.Log(typeof(Connect), "Service is directConnect! Requesting directConnection", LogType.Info);
                 xml.AddParam("gameserver", "directConnection");
-                client.HasDirectConnection = true;
             } else {
                 xml.AddParam("bombd_version", "3.2.8");
                 xml.AddParam("bombd_builddate", "3/29/2010 4:52:54 PM");
@@ -55,7 +54,7 @@ namespace BombServerEmu_MNR.Src.Services
         {
             xml.SetName("connect");
             xml.SetMethod("timeSyncRequest");
-            xml.AddParam("serverTime", Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds));
+            xml.AddParam("serverTime", (uint)(DateTime.UtcNow.Ticks / 10000));
             client.HasDirectConnection = service.IsDirectConnect;
             client.SendNetcodeData(xml);
         }

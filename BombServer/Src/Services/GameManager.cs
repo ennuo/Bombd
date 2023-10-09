@@ -23,7 +23,7 @@ namespace BombServerEmu_MNR.Src.Services
             Service = new BombService("gamemanager", EProtocolType.TCP, false, ip, port, "output.pfx", "1234");
 
             Service.RegisterMethod("startConnect", Connect.StartConnectHandler);
-            Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandlerDEBUG);
+            Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandler);
 
             Service.RegisterMethod("logClientMessage", null);
             Service.RegisterMethod("registerSessionKeyWithTargetBombd", null);
@@ -56,6 +56,8 @@ namespace BombServerEmu_MNR.Src.Services
         {
             var gameserver = Program.Services.FirstOrDefault(match => match.Name == "gameserver");
 
+            xml.SetMethod("requestDirectHostConnection");
+            
             xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
             xml.AddParam("sessionId", "1");
             xml.AddParam("listenIP", gameserver != null ? gameserver.IP : "127.0.0.1");
@@ -63,15 +65,14 @@ namespace BombServerEmu_MNR.Src.Services
             
             client.SendNetcodeData(xml);
         }
-
-
+        
         void JoinGame(BombService service, IClient client, BombXml xml)
         {
             xml.SetMethod("joinGame");
-            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
-            xml.AddParam("sessionId", "1");
             xml.AddParam("listenIP", "127.0.0.1");
             xml.AddParam("listenPort", 50002); 
+            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
+            xml.AddParam("sessionId", "1");
             client.SendNetcodeData(xml);
         }
 
