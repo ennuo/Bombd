@@ -7,22 +7,28 @@ using System.Threading.Tasks;
 using BombServerEmu_MNR.Src.Protocols.Clients;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers.Extensions;
+using BombServerEmu_MNR.Src.Helpers;
 
 namespace BombServerEmu_MNR.Src.Services
 {
     class GameManager
     {
+
         public BombService Service { get; }
+        public static string UUID;
 
         public GameManager(string ip, ushort port)
         {
             Service = new BombService("gamemanager", EProtocolType.TCP, false, ip, port, "output.pfx", "1234");
+            UUID = Service.Uuid;
+
             Service.RegisterMethod("startConnect", Connect.StartConnectHandler);
             Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandlerDEBUG);
 
             Service.RegisterMethod("logClientMessage", null);
             Service.RegisterMethod("registerSessionKeyWithTargetBombd", null);
             Service.RegisterMethod("createGame", null);
+            Service.RegisterMethod("joinGame", JoinGame);
             Service.RegisterMethod("joinEmptyGame", null);
             Service.RegisterMethod("leaveGame", null);
             Service.RegisterMethod("leaveCurrentGame", LeaveCurrentGameHandler);
@@ -34,19 +40,38 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("directConnectionStatus", null);
             Service.RegisterMethod("publishAttributes", null);
             Service.RegisterMethod("kickPlayer", null);
+
+            Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
+        }
+
+
+        void JoinGame(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("joinGame");
+            xml.AddParam("gameName", xml.GetParam("gamename"));
+            xml.AddParam("host_uuid", GameManager.UUID);
+            xml.AddParam("host_ip", "127.0.0.1");
+            xml.AddParam("host_port", 7445); // Just testing, don't know what port this should use
+            client.SendNetcodeData(xml);
+        }
+
+        void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
+        {
+            bw.Write(new byte[0xFF]);
+            client.SendUnreliableGameData(bw);
         }
 
         void CreateGameHandler(BombService service, IClient client, BombXml xml)
-        {
-            //gamename,internalIP,externalIP,listenPort
-            //xml.SetMethod("createGame");
-            //client.SendNetcodeData(xml);
-        }
+            {
+                //gamename,internalIP,externalIP,listenPort
+                //xml.SetMethod("createGame");
+                //client.SendNetcodeData(xml);
+            }
 
-        void LeaveCurrentGameHandler(BombService service, IClient client, BombXml xml)
-        {
-            xml.SetMethod("leaveCurrentGame");
-            client.SendNetcodeData(xml);
+            void LeaveCurrentGameHandler(BombService service, IClient client, BombXml xml)
+            {
+                xml.SetMethod("leaveCurrentGame");
+                client.SendNetcodeData(xml);
+            }
         }
-    }
 }

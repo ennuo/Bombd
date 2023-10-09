@@ -34,25 +34,32 @@ namespace BombServerEmu_MNR.Src.Services
 
             //This response is 120% correct, investigate the matchmaking config, thats likely why the game wont create a game
             xml.SetMethod("listGames");
+
+            var timeOfDeath = Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds);
+
             var gameList = new BombGameList
             {
-                Unk1 = 0,
-                Unk2 = "",
-                Unk3 = "",
-                Unk4 = ""
+                TimeOfDeath = (int) timeOfDeath,
+                ClusterUuid = Program.ClusterUuid,
+                GameManagerIP = "127.0.0.1",
+                GameManagerPort = "10505",
+                GameManagerUUID = GameManager.UUID
             };
-            //var game = new BombGame
-            //{
-            //    GameName = "test_game",
-            //    Unk1 = "TEST"
-            //};
-            //game.AdvancedFilters.Add("__IS_RANKED", "0");
-            //game.AdvancedFilters.Add("__JOIN_MODE", "OPEN");
-            //game.AdvancedFilters.Add("__MM_MODE_G", "OPEN");
-            //gameList.Add(game);
+
+            var game = new BombGame
+            {
+                GameName = "test_game",
+                DisplayName = "TEST"
+            };
+            game.GameAttributes.Add("__IS_RANKED", "0");
+            game.GameAttributes.Add("__JOIN_MODE", "OPEN");
+            game.GameAttributes.Add("__MM_MODE_G", "OPEN");
+            game.GameAttributes.Add("__MAX_PLAYERS", "8");
+            gameList.Add(game);
+
             xml.AddParam("serverGameListHeader", Convert.ToBase64String(gameList.SerializeHeader()));
             xml.AddParam("serverGameList", Convert.ToBase64String(gameList.SerializeList()));
-            xml.AddParam("gameListTimeOfDeath", Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds));
+            xml.AddParam("gameListTimeOfDeath", timeOfDeath);
             client.SendNetcodeData(xml);
         }
 
