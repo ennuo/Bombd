@@ -200,12 +200,14 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Write((byte) EBombPacketType.Handshake);
                 bw.Write((byte)0);
                 bw.Write(checksum);
+
+                _seqNumber = 0;
+                _gameDataSeqNumber = 0;
                 
-                bw.Write(_seqNumber++);
+                bw.Write(_seqNumber);
                 bw.Write(_sessionId);
                 bw.Write(_secret);
-                // I don't know if we actually have to increment this here or not
-                bw.Write(_gameDataSeqNumber++); 
+                bw.Write(_gameDataSeqNumber); 
                 
                 bw.Flush();
 
