@@ -9,7 +9,7 @@ TODO:
 - ~~Get a list of services to connect to~~
 - ~~Connect to all the initially required services successfully~~
 - ~~Request a game list from gamebrowser~~
-- Attempt to join a game given by gamebrowser
+- ~~Attempt to join a game given by gamebrowser~~
 - Can match up with other players in modspot
 - Online races can be hosted
 - Other services are implemented. For example, stats, playgroup etc
