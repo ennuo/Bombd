@@ -24,61 +24,30 @@ namespace BombServerEmu_MNR.Src
             Logging.RealLog(typeof(Program), "BombServer  Copyright (C) 2021  derole\n" +
                 "This program comes with ABSOLUTELY NO WARRANTY! This is free software, and you are welcome to redistribute it under certain conditions\n", LogType.Info);
             CheckArgs(args);
-            //SetCipherSuite();
-            if (!CheckCerts()) {
-                Logging.Log(typeof(Program), "Failed to find a certificate in the Certs folder!", LogType.Error);
-                Console.ReadKey();
-                return;
-            }
-            Services.Add(new Directory("192.168.1.196", 10501).Service);
 
-            Services.Add(new Matchmaking("192.168.1.196", 10510).Service);  //Made up port
-            Services.Add(new GameManager("192.168.1.196", 10505).Service);
-            Services.Add(new GameBrowser("192.168.1.196", 10412).Service);
+            Services.Add(new Directory("127.0.0.1", 10501).Service);
 
-            Services.Add(new TextComm("192.168.1.196", 10513).Service);  //Made up port
-            Services.Add(new PlayGroup("192.168.1.196", 10514).Service);  //Made up port
-            Services.Add(new Stats("192.168.1.196", 50002).Service);
+            Services.Add(new Matchmaking("127.0.0.1", 10510).Service);  //Made up port
+            Services.Add(new GameManager("127.0.0.1", 10505).Service);
+            Services.Add(new GameBrowser("127.0.0.1", 10412).Service);
+            Services.Add(new GameServer(50002).Service);
+
+            Services.Add(new TextComm("127.0.0.1", 10513).Service);  //Made up port
+            Services.Add(new PlayGroup("127.0.0.1", 10514).Service);  //Made up port
+            Services.Add(new Stats("127.0.0.1", 13452).Service);
 
             // TEST
             //new GameServer(1234);
 
-            //Services.Add(new Directory("192.168.1.196", 11501).Service);
+            //Services.Add(new Directory("127.0.0.1", 11501).Service);
 
-            //Services.Add(new Matchmaking("192.168.1.196", 11510).Service);
-            //Services.Add(new GameManager("192.168.1.196", 11511).Service);
-            //Services.Add(new GameBrowser("192.168.1.196", 11512).Service);
+            //Services.Add(new Matchmaking("127.0.0.1", 11510).Service);
+            //Services.Add(new GameManager("127.0.0.1", 11511).Service);
+            //Services.Add(new GameBrowser("127.0.0.1", 11512).Service);
 
-            //Services.Add(new TextComm("192.168.1.196", 11513).Service);
-            //Services.Add(new PlayGroup("192.168.1.196", 11514).Service);
-            //Services.Add(new Stats("192.168.1.196", 11515).Service);
-        }
-
-        static bool CheckCerts()
-        {
-            try
-            {
-                Logging.Log(typeof(Program), System.IO.Path.GetFullPath(@"Certs\output.pfx"), LogType.Debug);
-                if (!System.IO.File.Exists(@"Data\Certs\output.pfx"))
-                {
-                    var proc = Process.Start(@"Data\Scripts\GenCert.bat");
-                    proc.WaitForExit();
-                    if (System.IO.File.Exists(@"C:\Program Files\OpenSSL-Win64\bin\certs\output.pfx"))
-                    {
-                        System.IO.File.Move(@"C:\Program Files\OpenSSL-Win64\bin\certs\output.pfx", @"Data\Certs\output.pfx");
-                        System.IO.Directory.Delete(@"C:\Program Files\OpenSSL-Win64\bin\certs", true);
-                        return true;
-                    }
-                    return false;
-                }
-                return true;
-            } catch { return false; }
-        }
-
-        static void SetCipherSuite()
-        {
-            var proc = Process.Start("PowerShell", string.Format("\"{0}\"", System.IO.Path.GetFullPath(@"Data\Scripts\SetCipherSuite.ps1")));
-            proc.WaitForExit();
+            //Services.Add(new TextComm("127.0.0.1", 11513).Service);
+            //Services.Add(new PlayGroup("127.0.0.1", 11514).Service);
+            //Services.Add(new Stats("127.0.0.1", 11515).Service);
         }
 
         static void CheckArgs(string[] args)

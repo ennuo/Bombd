@@ -26,7 +26,7 @@ namespace BombServerEmu_MNR.Src.Log
 {
     class Logging
     {
-        public static LogLevel logLevel = LogLevel.Error;
+        public static LogLevel logLevel = LogLevel.Debug;
 
         static FileStream logFile;
 
@@ -88,7 +88,7 @@ namespace BombServerEmu_MNR.Src.Log
         {
             if ((int)logLevel > (int)type)
             {
-                string[] moduleSplit = module.ToString().Split('.');
+                string[] moduleSplit = module.ToString()?.Split('.');
                 foreach (string line in message.Split('\n'))
                 {
                     switch (type)

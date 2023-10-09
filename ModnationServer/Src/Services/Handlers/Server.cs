@@ -22,7 +22,7 @@ namespace ModnationServer.Src.Services.Handlers
             var root = doc.CreateElement("response");
             var server = doc.CreateElement(root, "server", null, new KeyValuePair<string, string>[] {
                 new KeyValuePair<string, string>("server_type", "DIRECTORY"),
-                new KeyValuePair<string, string>("address", "192.168.1.196"),
+                new KeyValuePair<string, string>("address", "127.0.0.1"),
                 new KeyValuePair<string, string>("port", "10501"),
                 new KeyValuePair<string, string>("session_uuid", "9aa555a8-cc1a-11e8-81c9-22000acbd9b1"),
                 new KeyValuePair<string, string>("server_private_key", "MIGrAgEAAiEAq0cOe8L1tOpnc7e+ouVD"),

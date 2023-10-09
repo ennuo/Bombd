@@ -105,7 +105,7 @@ namespace BombServerEmu_MNR.Src.Services
             xml.SetName("gamemanager");
             xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
             xml.SetMethod("requestDirectHostConnection");
-            xml.AddParam("listenIP", "192.168.1.196");
+            xml.AddParam("listenIP", "127.0.0.1");
             xml.AddParam("listenPort", "50002");
             xml.AddParam("hashSalt", "");
             xml.AddParam("sessionId", "1");
