@@ -121,7 +121,12 @@ namespace BombServerEmu_MNR.Src.DataTypes
                     }
                 }
             } catch (Exception e) { Logging.Log(typeof(BombService), "{0}", LogType.Debug, e); }
+            
             Logging.Log(typeof(BombService), "Connection lost!", LogType.Info);
+            if (Protocol == EProtocolType.RUDP)
+            {
+                ((RUDP)Listener).Connections.Remove(client.RemoteEndPoint);
+            }
             client.Close();
         }
     }
