@@ -87,23 +87,14 @@ namespace BombServerEmu_MNR.Src.DataTypes
                 client.SetKeepAlive(KEEP_ALIVE_INVERVAL);
                 while (client.IsConnected)
                 {
-                    if (client.HasDirectConnection)
+                    client.UpdateOutgoingData();
+                    var data = client.GetData(out var type);
+                    if (data == null) continue;
+
+                    if (type == EBombPacketType.ReliableNetcodeData)
                     {
-                        var data = client.GetRawData();
-                        var br = new EndiannessAwareBinaryReader(new MemoryStream(data), directMethodEndianness);
-                        var bw = new EndiannessAwareBinaryWriter(new MemoryStream(), directMethodEndianness);
-                        if (directMethod == null)
-                        {
-                            Logging.Log(typeof(BombService), "No handler exists for directConnect at service {0}!", LogType.Error, Name);
-                            break;
-                        }
-                        Logging.Log(typeof(BombService), "Received directConnect request at service {0}", LogType.Info, Name);
-                        directMethod(client, br, bw);
-                    }
-                    else
-                    {
-                        var xml = client.GetNetcodeData();
-                        string method = xml.GetMethod();
+                        var xml = new BombXml(client.Service, Encoding.ASCII.GetString(data));
+                        var method = xml.GetMethod();
                         if (!methods.ContainsKey(method) || methods[method] == null)
                         {
                             Logging.Log(typeof(BombService), "No handler exists for method {0} at service {1}!", LogType.Error, method, Name);
@@ -111,6 +102,19 @@ namespace BombServerEmu_MNR.Src.DataTypes
                         }
                         Logging.Log(typeof(BombService), "Received request for {0} at service {1}", LogType.Info, method, Name);
                         methods[method](this, client, xml);
+                    }
+                    else if (client.HasDirectConnection)
+                    {
+                        if (directMethod == null)
+                        {
+                            Logging.Log(typeof(BombService), "No handler exists for directConnect at service {0}!", LogType.Error, Name);
+                            break;
+                        }
+                        
+                        var br = new EndiannessAwareBinaryReader(new MemoryStream(data), directMethodEndianness);
+                        var bw = new EndiannessAwareBinaryWriter(new MemoryStream(), directMethodEndianness);
+                        Logging.Log(typeof(BombService), "Received directConnect request at service {0}", LogType.Info, Name);
+                        directMethod(client, br, bw);
                     }
                 }
             } catch (Exception e) { Logging.Log(typeof(BombService), "{0}", LogType.Debug, e); }

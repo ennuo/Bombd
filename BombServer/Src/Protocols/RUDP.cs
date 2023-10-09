@@ -21,31 +21,38 @@ namespace BombServerEmu_MNR.Src.Protocols
 
         public Dictionary<IPEndPoint, RUDPClient> Connections { get; } = new Dictionary<IPEndPoint, RUDPClient>();
 
-        public RUDP(BombService service, string ip, ushort port) => Listener = new UdpClient(ip, port);
-        public RUDP(BombService service, ushort port) => Listener = new UdpClient(port);
+        public RUDP(BombService service, string ip, ushort port)
+        {
+            Service = service;
+            Listener = new UdpClient(port);
+        }
 
         public void SetCert(string certPath, string certPass) => Logging.Log(typeof(RUDP), "Cannot set cert for RUDP protocol!", LogType.Warning);
 
-        public void Start() { }
+        public void Start()
+        {
+            
+        }
 
         public IClient GetClient()
         {
-            var ipEp = new IPEndPoint(IPAddress.None, 0);
+            var endpoint = new IPEndPoint(IPAddress.None, 0);
             while (true)
             {
-                var data = Listener.Receive(ref ipEp);
-                if (!Connections.ContainsKey(ipEp))
+                var data = Listener.Receive(ref endpoint);
+                Connections.TryGetValue(endpoint, out var client);
+                if (client == null)
                 {
-                    if ((EBombPacketType)data[0] == EBombPacketType.Handshake)
-                    {
-                        var client = new RUDPClient(Service, Listener, ipEp);
-                        Connections.Add(ipEp, client);
-                        Logging.Log(typeof(RUDP), "Connection from {0}:{1}", LogType.Info, ipEp.Address, ipEp.Port);
-                        return client;
-                    }
+                    client = new RUDPClient(Service, Listener, endpoint);
+                    client.PacketQueue.Enqueue(data);
+                    Connections.Add(endpoint, client);
+                    
+                    Logging.Log(typeof(RUDP), "Connection from {0}:{1}", LogType.Info, endpoint.Address, endpoint.Port);
+                    
+                    return client;
                 }
-                else
-                    Connections[ipEp].PacketQueue.Enqueue(data);
+
+                client.PacketQueue.Enqueue(data);
             }
         }
     }

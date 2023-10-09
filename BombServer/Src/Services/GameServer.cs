@@ -9,6 +9,7 @@ using BombServerEmu_MNR.Src.Protocols.Clients;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers;
 using BombServerEmu_MNR.Src.Helpers.Extensions;
+using BombServerEmu_MNR.Src.Log;
 
 namespace BombServerEmu_MNR.Src.Services
 {
@@ -28,8 +29,7 @@ namespace BombServerEmu_MNR.Src.Services
 
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
-            bw.Write(new byte[0xFF]);
-            client.SendUnreliableGameData(bw);
+            
         }
     }
 }

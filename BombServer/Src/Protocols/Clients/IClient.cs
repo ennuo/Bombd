@@ -18,15 +18,16 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         BombService Service { get; }
 
         void SetKeepAlive(int interval);
-        BombXml GetNetcodeData();
+
+        byte[] GetData(out EBombPacketType type);
         void SendNetcodeData(BombXml xml);
-        byte[] GetRawData();
         void SendReliableGameData(EndiannessAwareBinaryWriter bw);
         void SendUnreliableGameData(EndiannessAwareBinaryWriter bw);
         void SendKeepAlive();
         void SendReset();
-        void SendAcknowledge();
-        void SendSync();
+        void SendAck(EBombPacketType protocol, int sequenceNumber);
+        void SendHandshake();
+        void UpdateOutgoingData();
         void Close();
     }
 }

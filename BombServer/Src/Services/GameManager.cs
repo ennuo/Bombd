@@ -16,6 +16,8 @@ namespace BombServerEmu_MNR.Src.Services
 
         public BombService Service { get; }
         public static string UUID;
+        public static uint HashSalt = 1396788308;
+        
 
         public GameManager(string ip, ushort port)
         {
@@ -36,7 +38,7 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("reserveGameSlotsForPlayers", null);
             Service.RegisterMethod("dropReservedGame", null);
             Service.RegisterMethod("migrateToGame", null);
-            Service.RegisterMethod("requestDirectHostConnection", null);    //???
+            Service.RegisterMethod("requestDirectHostConnection", RequestDirectHostConnection);    //???
             Service.RegisterMethod("directConnectionStatus", null);
             Service.RegisterMethod("publishAttributes", null);
             Service.RegisterMethod("kickPlayer", null);
@@ -44,14 +46,24 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
         }
 
+        void RequestDirectHostConnection(BombService service, IClient client, BombXml xml)
+        {
+            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
+            xml.AddParam("sessionId", "1");
+            xml.AddParam("listenIP", "127.0.0.1");
+            xml.AddParam("listenPort", 50002); 
+            
+            client.SendNetcodeData(xml);
+        }
+
 
         void JoinGame(BombService service, IClient client, BombXml xml)
         {
             xml.SetMethod("joinGame");
-            xml.AddParam("gameName", xml.GetParam("gamename"));
-            xml.AddParam("host_uuid", GameManager.UUID);
-            xml.AddParam("host_ip", "127.0.0.1");
-            xml.AddParam("host_port", 7445); // Just testing, don't know what port this should use
+            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
+            xml.AddParam("sessionId", "1");
+            xml.AddParam("listenIP", "127.0.0.1");
+            xml.AddParam("listenPort", 50002); 
             client.SendNetcodeData(xml);
         }
 

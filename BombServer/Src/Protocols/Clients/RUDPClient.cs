@@ -12,6 +12,7 @@ using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers;
 using BombServerEmu_MNR.Src.Helpers.Extensions;
+using BombServerEmu_MNR.Src.Services;
 
 namespace BombServerEmu_MNR.Src.Protocols.Clients
 {
@@ -31,243 +32,286 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         public UdpClient Client { get; }
         public IPEndPoint EndPoint { get; }
         public Queue<byte[]> PacketQueue { get; } = new Queue<byte[]>();
+        
+        private readonly Dictionary<ushort, byte[]> _dataFragments = new Dictionary<ushort, byte[]>();
+        
+        private int _seqNumber;
+        private int _gameDataSeqNumber;
+        private int _sessionId;
+        private int _secret;
 
-        EBombPacketType lastPacketType;
-
-        Timer keepAlive;
+        private ushort _nextGroupId;
+        
+        private bool _hasCompletedHandshake;
+        private Timer _keepAlive;
 
         public RUDPClient(BombService service, UdpClient listener, IPEndPoint endPoint)
         {
             Service = service;
             Client = listener;
             EndPoint = endPoint;
-            RemoteEndPoint = (IPEndPoint)Client.Client.RemoteEndPoint;
-            //Perform an acknowledge and sync to get the client to send its data
-            SendAcknowledge();
-            SendSync();
         }
 
         public void SetKeepAlive(int interval)
         {
-            keepAlive = new Timer(SendKeepAlive, new AutoResetEvent(false), 0, interval);
+            _keepAlive = new Timer(SendKeepAlive, new AutoResetEvent(false), 0, interval);
             Logging.Log(typeof(RUDPClient), "Updated KeepAlive interval to {0}ms", LogType.Debug, interval);
         }
-
-        public BombXml GetNetcodeData()
-        {
-            return new BombXml(Service, Encoding.ASCII.GetString(ReadSocket()));
-        }
-
+        
         public void SendNetcodeData(BombXml xml)
         {
-            WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.ReliableNetcodeData);
-        }
+            var data = Encoding.ASCII.GetBytes(xml.GetResDoc() + "\0");
+            var offset = 0;
+            var groupId = _nextGroupId++;
+            do
+            {
+                var payloadSize = Math.Min(data.Length - offset, MAX_PAYLOAD_SIZE);
+                var packetSize = 0x10 + payloadSize;
+                
+                using (var ms = new MemoryStream(packetSize))
+                using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+                {
+                    uint checksum = 0;
+                    
+                    bw.Write((byte) EBombPacketType.ReliableNetcodeData);
+                    bw.Write(offset + payloadSize >= data.Length);
+                    bw.Write(groupId);
+                    bw.Write(_seqNumber++);
+                    bw.Write(checksum);
+                    bw.Write(new byte[4]);
+                    bw.Write(data, offset, payloadSize);
+                    bw.Flush();
+                    
+                    var packet = ms.ToArray();
+                    checksum = BombHMAC.GetMD532(packet, 0);
+                    packet[8] = (byte)((checksum >> 24) & 0xff);
+                    packet[9] = (byte)((checksum >> 16) & 0xff);
+                    packet[10] = (byte)((checksum >> 8) & 0xff);
+                    packet[11] = (byte)(checksum & 0xff);
 
-        public byte[] GetRawData()
-        {
-            return ReadSocket();
+                    Client.Send(packet, packetSize, EndPoint);
+                }
+
+                offset += payloadSize;
+                
+            } while (offset < data.Length);
         }
 
         public void SendReliableGameData(EndiannessAwareBinaryWriter bw)
         {
-            WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.ReliableGameData);
+            // WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.ReliableGameData);
         }
 
         public void SendUnreliableGameData(EndiannessAwareBinaryWriter bw)
         {
-            WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.UnreliableGameData);
+            // WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.UnreliableGameData);
         }
 
         public void SendKeepAlive()
         {
-            WriteSocket(new byte[0], EBombPacketType.KeepAlive);
+            const int keepAlivePacketSize = 0x10;
+            using (var ms = new MemoryStream(keepAlivePacketSize))
+            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+            {
+                bw.Write((byte) EBombPacketType.KeepAlive);
+                bw.Write(new byte[3]);
+                bw.Write(_seqNumber++);
+
+                var localTime = (int)Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds);
+                bw.Write(localTime);
+                bw.Write(new byte[4]);
+                
+                bw.Flush();
+
+                Client.Send(ms.ToArray(), keepAlivePacketSize, EndPoint);
+                
+            }
         }
-        void SendKeepAlive(object stateInfo) => SendKeepAlive();    //For timer
+
+        void SendKeepAlive(object stateInfo)
+        {
+            if (!_hasCompletedHandshake) return;
+            SendKeepAlive();    //For timer  
+        } 
 
         public void SendReset()
         {
-            WriteSocket(new byte[0], EBombPacketType.Reset);
+            // WriteSocket(new byte[0], EBombPacketType.Reset);
+        }
+        
+        public void SendAck(EBombPacketType protocol, int sequence)
+        {
+            const int ackPacketSize = 0x10;
+            using (var ms = new MemoryStream(ackPacketSize))
+            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+            {
+                bw.Write((byte) EBombPacketType.Acknowledge);
+                bw.Write((byte) protocol);
+                bw.Write(new byte[2]);
+                bw.Write(sequence);
+
+                var localTime = (int)Math.Floor((DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds);
+                bw.Write(localTime);
+                bw.Write(new byte[4]);
+                
+                bw.Flush();
+
+                Client.Send(ms.ToArray(), ackPacketSize, EndPoint);
+                
+            }
         }
 
-        public void SendAcknowledge()
+        public void SendHandshake()
         {
-            WriteSocket(new byte[0], EBombPacketType.Acknowledge);
-        }
+            const int handshakePacketSize = 0x14;
+            using (var ms = new MemoryStream(handshakePacketSize))
+            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+            {
+                ushort checksum = 0;
+                
+                bw.Write((byte) EBombPacketType.Handshake);
+                bw.Write((byte)0);
+                bw.Write(checksum);
+                
+                bw.Write(_seqNumber++);
+                bw.Write(_sessionId);
+                bw.Write(_secret);
+                // I don't know if we actually have to increment this here or not
+                bw.Write(_gameDataSeqNumber++); 
+                
+                bw.Flush();
 
-        public void SendSync()
-        {
-            WriteSocket(new byte[0], EBombPacketType.Handshake);
+                var packet = ms.ToArray();
+                checksum = BombHMAC.GetMD516(packet, 0);
+                packet[2] = (byte)(checksum >> 8);
+                packet[3] = (byte)(checksum & 0xff);
+
+                Client.Send(packet, handshakePacketSize, EndPoint);
+            }
         }
 
         public void Close()
         {
-            if (keepAlive != null)
-                keepAlive.Dispose();
+            if (_keepAlive != null)
+                _keepAlive.Dispose();
             //TODO: Stream
-            Client.Close();
+        }
+
+        public void UpdateOutgoingData()
+        {
+            // TODO: Keep track of lost packets and re-send if necessary here
         }
 
         ~RUDPClient()
         {
-            Close();
+            // TODO: Remove this connection from RUDP when its unused
+            // Close();
         }
 
-        byte[] ReadSocket()
+        public byte[] GetData(out EBombPacketType type)
         {
             Block();
             var ep = new IPEndPoint(IPAddress.None, 0);
             using (var ms = new MemoryStream(PacketQueue.Dequeue()))
             using (var br = new EndiannessAwareBinaryReader(ms, EEndianness.Big))
             {
-                var packetType = (EBombPacketType)br.ReadByte();
-                switch (packetType)
+                type = (EBombPacketType)br.ReadByte();
+                
+                // If the packet is reliable, send back an acknowledgement
+                if (type != EBombPacketType.Reset && type != EBombPacketType.Acknowledge &&
+                    type != EBombPacketType.UnreliableGameData)
                 {
-                    case EBombPacketType.Acknowledge:
-                        {
-                            Logging.Log(typeof(RUDPClient), "ReadSocket::Acknowledge: Unimplemented!", LogType.Error);
-                            break;
-                        }
-                    case EBombPacketType.KeepAlive:
-                        {
-                            // TODO: Extend a KeepAlive timer
-                            WriteSocket(new byte[0], EBombPacketType.Acknowledge);
-                            break;
-                        }
-                    case EBombPacketType.ReliableNetcodeData:
-                        {
-                            //byte[] buf = new byte[MAX_PAYLOAD_SIZE];
-                            //int bytesRead = 0;
-                            //do
-                            //{
-                            //    bytesRead += stream.Read(ref buf, bytesRead, buf.Length - bytesRead);
-                            //    Logging.Log(typeof(SSLClient), "Read {0}/{1} bytes", LogType.Debug, bytesRead, buf.Length);
-                            //} while (bytesRead < len && Block());
-                            //return buf.ToArray();
-                            WriteSocket(new byte[0], EBombPacketType.Acknowledge);
-                            break;
-                        }
-                    case EBombPacketType.ReliableGameData:
-                        {
-                            Logging.Log(typeof(RUDPClient), "ReadSocket::ReliableGameData: Unimplemented!", LogType.Error);
-                            WriteSocket(new byte[0], EBombPacketType.Acknowledge);
-                            break;
-                        }
-                    case EBombPacketType.UnreliableGameData:
-                        {
-                            Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
-                            break;
-                        }
-                    case EBombPacketType.VoipData: //Never used
-                    case EBombPacketType.Reset:  //??? how to handle this? Its never used though
-                    case EBombPacketType.Handshake:
-                        WriteSocket(new byte[0], EBombPacketType.Acknowledge);
-                        break;
+                    br.BaseStream.Position += 3;
+                    var sequence = br.ReadInt32();
+                    
+                    // For ReliableNetcodeData and ReliableGameData, do we have to send the acks only
+                    // after the group is complete?
+                    SendAck(type, sequence);
+                    
+                    // Undo position change in case we need to process some of the data later
+                    br.BaseStream.Position -= 7;
                 }
-                lastPacketType = packetType;
-            }
-            return null;
-        }
-
-        void WriteSocket(byte[] data, EBombPacketType packetType)
-        {
-            using (var ms = new MemoryStream())
-            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
-            {
-                bw.Write((byte)packetType);
-                switch (packetType)
+                
+                switch (type)
                 {
                     case EBombPacketType.Acknowledge:
-                        // 0x10 in size
-                        // char Protocol
-                        // char AckingProtocol
-                        // short pad
-                        // uint AckingSequenceNumber
-                        // uint LocalTime
-                        // uint Pad2
-
-                        bw.Write((byte)lastPacketType);
-                        bw.Write(new byte[14]);
+                        // TODO: Cache packets in memory until acknowledge is received for sequence number to make protocol "reliable"
+                        Logging.Log(typeof(RUDPClient), "ReadSocket::Acknowledge: Unimplemented!", LogType.Error);
+                        break;
+                    case EBombPacketType.KeepAlive: 
+                        // TODO: Extend a KeepAlive timer
                         break;
                     case EBombPacketType.ReliableNetcodeData:
-                        // 0x410 in size
-                        // char Protocol
-                        // char GroupCompleteFlag
-                        // short GroupID
-                        // uint SequenceNumber
-                        // uint Checksum
-                        // uint Pad2
-                        // uchar Payload[1024]
-                        Logging.Log(typeof(RUDPClient), "ReadSocket::NetcodeData: Unimplemented!", LogType.Error);
-                        break;
+                    {
+                        var groupCompleteFlag = br.ReadByte();
+                        var groupId = br.ReadUInt16();
+                        
+                        // If the data is ever sent out of order, would you have to
+                        // sort the data by the sequence number?
+                        var sequenceNumber = br.ReadInt32();
+
+                        var checksum = br.ReadInt32();
+                        br.BaseStream.Position += 4;
+
+                        // Is this just set to one if it's the last part of the data
+                        // or are there some other flags?
+                        var isLastFragment = (groupCompleteFlag & 1) != 0;
+                        var data = br.ReadBytes((int)(br.BaseStream.Length - br.BaseStream.Position));
+                        
+                        if (_dataFragments.TryGetValue(groupId, out var group))
+                        {
+                            // Maybe I should use a list and merge them all when the last fragment is received?
+                            var concat = new byte[data.Length + group.Length];
+                            Buffer.BlockCopy(group, 0, concat, 0, group.Length);
+                            Buffer.BlockCopy(data, 0, concat, group.Length, data.Length);
+
+                            if (isLastFragment)
+                            {
+                                _dataFragments.Remove(groupId);
+                                return concat;
+                            }
+
+                            _dataFragments[groupId] = concat;
+                            break;
+                        }
+
+                        if (isLastFragment) return data;
+                        _dataFragments[groupId] = data;
+                        break;   
+                    }
                     case EBombPacketType.ReliableGameData:
-                        // 0x410 in size
-                        // char Protocol
-                        // char Source
-                        // char Destination
-                        // char GroupCompleteFlag
-                        // uint SequenceNumber
-                        // short GroupId
-                        // ushort GroupSizeBytes
-                        // ushort Checksum
-                        // short PayloadBytes
-                        // uchar Payload[1024]
                         Logging.Log(typeof(RUDPClient), "ReadSocket::ReliableGameData: Unimplemented!", LogType.Error);
                         break;
                     case EBombPacketType.UnreliableGameData:
-                        // 0x410 in size
-                        // char Protocol
-                        // char Source
-                        // short Destination
-                        // short PayloadBytes
-                        // ushort Checksum
-                        // uchar Payload[1032]
                         Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
                         break;
-                    case EBombPacketType.VoipData:
-                        // 0x410 in size
-                        // char Protocol
-                        // char Source
-                        // short Destination
-                        // uint SequenceNumber
-                        // uint Pad1
-                        // uint Pad2
-                        // char Payload[1024]
-
-                        Logging.Log(typeof(RUDPClient), "WriteSocket::VoipData: Unimplemented!", LogType.Error);
+                    case EBombPacketType.VoipData: //Never used
+                        break;
+                    case EBombPacketType.Reset: //??? how to handle this? Its never used though
                         break;
                     case EBombPacketType.Handshake:
-                        // 0x14 in size
-                        // char Protocol
-                        // char pad
-                        // ushort Checksum
-                        // uint SequenceNumber
-                        // uint SessionId
-                        // uint SecretNum
-                        // uint GameDataSequenceNumber
-
-                        Logging.Log(typeof(RUDPClient), "WriteSocket::Handshake: Unimplemented!", LogType.Error);
-                        break;
-                    case EBombPacketType.KeepAlive:
-                        // 0x10 in size
-                        // char Protocol
-                        // char pad
-                        // short pad1
-                        // uint SequenceNumber
-                        // uint LocalTime
-                        // uint Pad2
-
-                        Logging.Log(typeof(RUDPClient), "WriteSocket::KeepAlive: Unimplemented!", LogType.Error);
-                        break;
-
-                    case EBombPacketType.Reset:
-                        Logging.Log(typeof(RUDPClient), "WriteSocket::Reset: Unimplemented!", LogType.Error);
-                        Close();
-                        break;
+                    {
+                        br.BaseStream.Position += 1;
+                
+                        // Should I bother verifying the checksum?
+                        var checksum = br.ReadUInt16();
+                
+                        var sequenceNumber = br.ReadInt32();
+                        _sessionId = br.ReadInt32();
+                        _secret = br.ReadInt32();
+                        var gameDataSequenceNumber = br.ReadInt32();
+                        
+                        SendHandshake();
+                        _hasCompletedHandshake = true;
+                        
+                        break;   
+                    }
                 }
-                Client.Send(data, data.Length, EndPoint);
             }
+            
+            return null;
         }
-
+        
         bool Block()
         {
             while (PacketQueue.Count == 0)

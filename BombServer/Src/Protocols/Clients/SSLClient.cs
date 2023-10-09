@@ -61,22 +61,12 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             keepAlive = new Timer(SendKeepAlive, new AutoResetEvent(false), 0, interval);
             Logging.Log(typeof(SSLClient), "Updated KeepAlive interval to {0}ms", LogType.Debug, interval);
         }
-
-        public BombXml GetNetcodeData()
-        {
-            return new BombXml(Service, Encoding.ASCII.GetString(ReadSocket()));
-        }
-
+        
         public void SendNetcodeData(BombXml xml)
         {
             WriteSocket(Encoding.ASCII.GetBytes(xml.GetResDoc()), EBombPacketType.ReliableNetcodeData);
         }
-
-        public byte[] GetRawData()
-        {
-            return ReadSocket();
-        }
-
+        
         public void SendReliableGameData(EndiannessAwareBinaryWriter bw)
         {
             WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.ReliableGameData);
@@ -98,12 +88,12 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             WriteSocket(new byte[0], EBombPacketType.Reset);
         }
 
-        public void SendAcknowledge()
+        public void SendAck(EBombPacketType protocol, int sequence)
         {
             WriteSocket(new byte[0], EBombPacketType.Acknowledge);
         }
 
-        public void SendSync()
+        public void SendHandshake()
         {
             WriteSocket(new byte[0], EBombPacketType.Handshake);
         }
@@ -116,47 +106,43 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             Client.Close();
         }
 
+        public void UpdateOutgoingData()
+        {
+            
+        }
+
         ~SSLClient()
         {
             Close();
         }
 
-        int x = 0;
-        byte[] ReadSocket()
-        {
-            byte[] headerBuf = new byte[24];
-            stream.Read(ref headerBuf, 0, headerBuf.Length);
-            int len = BitConverter.ToInt32(headerBuf, 0x00).SwapBytes() - 20;
-            var type = (EBombPacketType)headerBuf[20];
-            if (type == EBombPacketType.ReliableNetcodeData)
-            {
-                byte[] buf = new byte[len];
-                int bytesRead = 0;
-                do
-                {
-                    bytesRead += stream.Read(ref buf, bytesRead, buf.Length - bytesRead);
-                    Logging.Log(typeof(SSLClient), "Read {0}/{1} bytes", LogType.Debug, bytesRead, buf.Length);
-                } while (bytesRead < len);
-                return buf.ToArray();
-            }
-            else
-            {
-                //Check if we got a KeepAlive packet
-                //The server should periodically ping the client with a KeepAlive, that way if the user
-                //Is sitting somewhere with no matching, e.g. creation station, the game wont disconnect
-                //When the server sends a KeepAlive, the client responds with a KeepAlive and resets its timer
-                //
-                //We can also use this on the production server to stop modspot connection errors from appearing!
-                //Might be a nice temporary solution until matching works
-                if (type == EBombPacketType.KeepAlive)
-                    Logging.Log(typeof(SSLClient), "KeepAlive recieved!", LogType.Debug);
-                else
-                    Logging.Log(typeof(SSLClient), "Unsupported EBombPacketType {0}!", LogType.Debug, type);
-                return type == 0 ? null : ReadSocket();
-            }
-        }
 
-        int i = 0;
+        public byte[] GetData(out EBombPacketType type)
+        {
+            var header = new byte[24];
+            stream.Read(ref header, 0, header.Length);
+            var len = ((header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3]) - 20;
+            
+            type = (EBombPacketType)header[20];
+            
+            // No point trying to read nothing
+            if (len == 0) return null;
+            
+            var buf = new byte[len];
+            var bytesRead = 0;
+            do
+            {
+                bytesRead += stream.Read(ref buf, bytesRead, buf.Length - bytesRead);
+                Logging.Log(typeof(SSLClient), "Read {0}/{1} bytes", LogType.Debug, bytesRead, buf.Length);
+            } while (bytesRead < len);
+            
+            if (type == EBombPacketType.KeepAlive)
+                Logging.Log(typeof(SSLClient), "KeepAlive received!", LogType.Debug);
+            else if (type == EBombPacketType.ReliableNetcodeData)
+                return buf.ToArray();
+            return null;
+        }
+        
         void WriteSocket(byte[] data, EBombPacketType packetType)
         {
             using (var ms = new MemoryStream())
