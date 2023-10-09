@@ -12,8 +12,8 @@ namespace BombServerEmu_MNR.Src.DataTypes
 {
     class BombGame
     {
-        public Dictionary<int, string> Friends { get; set; } = new Dictionary<int, string>();
-        public List<string> Guests { get; set; } = new List<string>();
+        public List<BombGamePlayer> Players { get; set; } = new List<BombGamePlayer>();
+        public int TimeSinceLastPlayerJoin { get; set; }
         public string GameName { get; set; }
         public string DisplayName { get; set; }
         public Dictionary<string, string> GameAttributes { get; set; } = new Dictionary<string, string>();
@@ -23,27 +23,22 @@ namespace BombServerEmu_MNR.Src.DataTypes
             using (var ms = new MemoryStream())
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
             {
-                bw.Write(0); // mNumPlayers / Friend count
-                bw.Write(0); // mTimeSinceLastPlayerJoinedMS
+                bw.Write(Players.Count);
+                bw.Write(TimeSinceLastPlayerJoin);
 
-                //bw.Write(Friends.Count);
-                //foreach (var friend in Friends)
-                //{
-                //    bw.Write(friend.Key);
-                //    bw.WriteStringMember(friend.Value);
-                //}
-                //bw.Write(Guests.Count);
-                //foreach (var guest in Guests)
-                //    bw.WriteStringMember(guest);
-
+                foreach (var player in Players)
+                {
+                    bw.Write(player.ToArray());
+                }
+                
                 bw.WriteStringMember(GameName);
                 bw.WriteStringMember(DisplayName);
 
                 bw.Write(GameAttributes.Count);
-                foreach (var filter in GameAttributes)
+                foreach (var attribute in GameAttributes)
                 {
-                    bw.WriteStringMember(filter.Key);
-                    bw.WriteStringMember(filter.Value);
+                    bw.WriteStringMember(attribute.Key);
+                    bw.WriteStringMember(attribute.Value);
                 }
 
                 bw.Flush();

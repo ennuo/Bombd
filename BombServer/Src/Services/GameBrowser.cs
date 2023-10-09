@@ -48,13 +48,15 @@ namespace BombServerEmu_MNR.Src.Services
 
             var game = new BombGame
             {
-                GameName = "test_game",
-                DisplayName = "TEST"
+                GameName = "debug_kart_lobby",
+                DisplayName = "KartPark"
             };
+            
             game.GameAttributes.Add("__IS_RANKED", "0");
             game.GameAttributes.Add("__JOIN_MODE", "OPEN");
             game.GameAttributes.Add("__MM_MODE_G", "OPEN");
             game.GameAttributes.Add("__MAX_PLAYERS", "8");
+            
             gameList.Add(game);
 
             xml.AddParam("serverGameListHeader", Convert.ToBase64String(gameList.SerializeHeader()));
