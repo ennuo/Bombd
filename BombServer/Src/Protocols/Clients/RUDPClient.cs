@@ -15,26 +15,24 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
     class RUDPClient : IClient
     {
         const int MAX_PAYLOAD_SIZE = 1024;
+        const int TIMEOUT_MS = 30000;
 
-        public bool IsConnected
-        {
-            get { return !_shouldClose; }
-        }
+        public bool IsConnected => !_shouldClose;
         public bool HasDirectConnection { get; set; }
         public IPEndPoint RemoteEndPoint { get; }
 
         public BombService Service { get; }
 
         public UdpClient Client { get; }
-        public Queue<byte[]> PacketQueue { get; } = new Queue<byte[]>();
         
         public int State { get; set; }
         
         private readonly Dictionary<ushort, byte[]> _dataFragments = new Dictionary<ushort, byte[]>();
-
-        // Should the connection be closed if it hasn't received any requests
-        // in a given timespan?
+        private readonly Queue<byte[]> _packetQueue = new Queue<byte[]>();
+        
         private bool _shouldClose;
+        private bool _wasClosedByClient;
+        private DateTime _lastPacketReceiveTime;
         
         private int _seqNumber;
         private int _gameDataSeqNumber;
@@ -43,11 +41,17 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         private ushort _nextGroupId;
 
-        public RUDPClient(BombService service, UdpClient listener, IPEndPoint Endpoint)
+        public RUDPClient(BombService service, UdpClient listener, IPEndPoint endpoint)
         {
             Service = service;
             Client = listener;
-            RemoteEndPoint = Endpoint;
+            RemoteEndPoint = endpoint;
+        }
+
+        public void Enqueue(byte[] packet)
+        {
+            _packetQueue.Enqueue(packet);
+            _lastPacketReceiveTime = DateTime.Now;
         }
 
         public void SetKeepAlive(int interval)
@@ -140,13 +144,27 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Flush();
 
                 Client.Send(ms.ToArray(), keepAlivePacketSize, RemoteEndPoint);
-                
             }
         }
 
         public void SendReset()
         {
-            // Is there something supposed to be here?
+            const int resetPacketSize = 0x14;
+            using (var ms = new MemoryStream(resetPacketSize))
+            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+            {
+                bw.Write((byte) EBombPacketType.Reset);
+                bw.Write(new byte[3]);
+                bw.Write(_seqNumber++);
+                
+                bw.Write(new byte[4]);
+                bw.Write(_secret);
+                bw.Write(new byte[4]);
+                
+                bw.Flush();
+
+                Client.Send(ms.ToArray(), resetPacketSize, RemoteEndPoint);
+            }
         }
         
         public void SendAck(EBombPacketType protocol, int sequence)
@@ -167,7 +185,6 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 bw.Flush();
 
                 Client.Send(ms.ToArray(), ackPacketSize, RemoteEndPoint);
-                
             }
         }
 
@@ -202,7 +219,10 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void Close()
         {
-            
+            if (!_wasClosedByClient)
+            {
+                SendReset();
+            }
         }
 
         public void UpdateOutgoingData()
@@ -217,9 +237,13 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public byte[] GetData(out EBombPacketType type)
         {
-            Block();
+            if (!Block())
+            {
+                type = EBombPacketType.Invalid;
+                return null;
+            }
             
-            using (var ms = new MemoryStream(PacketQueue.Dequeue()))
+            using (var ms = new MemoryStream(_packetQueue.Dequeue()))
             using (var br = new EndiannessAwareBinaryReader(ms, EEndianness.Big))
             {
                 type = (EBombPacketType)br.ReadByte();
@@ -294,7 +318,9 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                         break;
                     case EBombPacketType.VoipData: //Never used
                         break;
-                    case EBombPacketType.Reset: //??? how to handle this? Its never used though
+                    case EBombPacketType.Reset:
+                        // Should the secret be verified?
+                        _wasClosedByClient = true;
                         _shouldClose = true;
                         break;
                     case EBombPacketType.Handshake:
@@ -321,8 +347,17 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         
         bool Block()
         {
-            while (PacketQueue.Count == 0)
-                Thread.Sleep(10);   //Find a better way of blocking
+            while (_packetQueue.Count == 0)
+            {
+                if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
+                {
+                    _shouldClose = true;
+                    return false;
+                }
+                
+                Thread.Sleep(10);   //Find a better way of blocking   
+            }
+            
             return true;
         }
     }

@@ -39,6 +39,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
     public enum EBombPacketType : byte
     {
+        Invalid = 0,
+        
         Acknowledge = 0x63,
         ReliableNetcodeData = 0x64,
         ReliableGameData = 0x66,

@@ -91,6 +91,8 @@ namespace BombServerEmu_MNR.Src.DataTypes
                     client.UpdateOutgoingData();
                     var data = client.GetData(out var type);
 
+                    if (type == EBombPacketType.Invalid) continue;
+
                     if (type == EBombPacketType.ReliableNetcodeData && data != null)
                     {
                         var xml = new BombXml(client.Service, Encoding.ASCII.GetString(data));

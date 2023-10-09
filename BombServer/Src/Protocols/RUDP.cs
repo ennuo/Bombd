@@ -44,7 +44,7 @@ namespace BombServerEmu_MNR.Src.Protocols
                 if (client == null)
                 {
                     client = new RUDPClient(Service, Listener, endpoint);
-                    client.PacketQueue.Enqueue(data);
+                    client.Enqueue(data);
                     Connections.Add(endpoint, client);
                     
                     Logging.Log(typeof(RUDP), "Connection from {0}:{1}", LogType.Info, endpoint.Address, endpoint.Port);
@@ -52,7 +52,7 @@ namespace BombServerEmu_MNR.Src.Protocols
                     return client;
                 }
 
-                client.PacketQueue.Enqueue(data);
+                client.Enqueue(data);
             }
         }
     }
