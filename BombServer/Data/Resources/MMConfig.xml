@@ -5,3 +5,6 @@
 	<ValuePair seconds="0" matchsize="0"/>
 </MatchSizeDecaySetting>
 <LonelinessReductionMultiplier seconds="10" multiplier="1" maxapplications="1"/>
+<AdvancedFilter name="__JOIN_MODE" weight="1.0">
+	<PossibleValue default="true">OPEN</PossibleValue>
+</AdvancedFilter>
