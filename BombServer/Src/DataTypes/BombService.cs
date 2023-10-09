@@ -89,9 +89,8 @@ namespace BombServerEmu_MNR.Src.DataTypes
                 {
                     client.UpdateOutgoingData();
                     var data = client.GetData(out var type);
-                    if (data == null) continue;
 
-                    if (type == EBombPacketType.ReliableNetcodeData)
+                    if (type == EBombPacketType.ReliableNetcodeData && data != null)
                     {
                         var xml = new BombXml(client.Service, Encoding.ASCII.GetString(data));
                         var method = xml.GetMethod();
@@ -111,10 +110,14 @@ namespace BombServerEmu_MNR.Src.DataTypes
                             break;
                         }
                         
-                        var br = new EndiannessAwareBinaryReader(new MemoryStream(data), directMethodEndianness);
+                        var br = new EndiannessAwareBinaryReader(new MemoryStream(data ?? Array.Empty<byte>()), directMethodEndianness);
                         var bw = new EndiannessAwareBinaryWriter(new MemoryStream(), directMethodEndianness);
-                        Logging.Log(typeof(BombService), "Received directConnect request at service {0}", LogType.Info, Name);
+                        
+                        // Logging.Log(typeof(BombService), "Received directConnect request at service {0}", LogType.Info, Name);
                         directMethod(client, br, bw);
+                        
+                        br.Close();
+                        bw.Close();
                     }
                 }
             } catch (Exception e) { Logging.Log(typeof(BombService), "{0}", LogType.Debug, e); }

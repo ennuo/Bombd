@@ -29,7 +29,14 @@ namespace BombServerEmu_MNR.Src.Services
 
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
-            
+            var state = ((RUDPClient)client).State;
+            if (state == 0)
+            {
+                bw.Write(new byte[0x78]);
+                client.SendUnreliableGameData(bw);
+
+                ((RUDPClient)client).State = 1;
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-
+using System.Runtime.Remoting;
 using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Protocols.Clients;
@@ -25,7 +25,7 @@ namespace BombServerEmu_MNR.Src.Services
             if (service.IsDirectConnect) {
                 Logging.Log(typeof(Connect), "Service is directConnect! Requesting directConnection", LogType.Info);
                 xml.AddParam("gameserver", "directConnection");
-                //xml.AddParam("gameserver", "directGameServer");
+                client.HasDirectConnection = true;
             } else {
                 xml.AddParam("bombd_version", "3.2.8");
                 xml.AddParam("bombd_builddate", "3/29/2010 4:52:54 PM");

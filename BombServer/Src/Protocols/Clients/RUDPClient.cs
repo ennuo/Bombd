@@ -33,6 +33,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         public IPEndPoint EndPoint { get; }
         public Queue<byte[]> PacketQueue { get; } = new Queue<byte[]>();
         
+        public int State { get; set; }
+        
         private readonly Dictionary<ushort, byte[]> _dataFragments = new Dictionary<ushort, byte[]>();
         
         private int _seqNumber;
@@ -41,9 +43,6 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         private int _secret;
 
         private ushort _nextGroupId;
-        
-        private bool _hasCompletedHandshake;
-        private Timer _keepAlive;
 
         public RUDPClient(BombService service, UdpClient listener, IPEndPoint endPoint)
         {
@@ -54,7 +53,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SetKeepAlive(int interval)
         {
-            
+            // Temporarily disabling the keep alive interval here,
+            // going to stick with the game's keep alive req/res's for now
         }
         
         public void SendNetcodeData(BombXml xml)
@@ -103,7 +103,25 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendUnreliableGameData(EndiannessAwareBinaryWriter bw)
         {
-            // WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.UnreliableGameData);
+            bw.Flush();
+            var payload = ((MemoryStream)bw.BaseStream).ToArray(); // Gross?
+
+            var packet = new byte[0x8 + payload.Length];
+            Buffer.BlockCopy(payload, 0, packet, 0x8, payload.Length);
+
+            packet[0] = (byte)EBombPacketType.UnreliableGameData;
+            packet[1] = 0xfe;
+            packet[2] = 0xff;
+            packet[3] = 0xff;
+            
+            packet[4] = (byte)((payload.Length >> 8) & 0xff);
+            packet[5] = (byte)(payload.Length & 0xff);
+            
+            var checksum = BombHMAC.GetMD516(packet, 0);
+            packet[6] = (byte)((checksum >> 8) & 0xff);
+            packet[7] = (byte)(checksum & 0xff);
+
+            Client.Send(packet, packet.Length, EndPoint);
         }
 
         public void SendKeepAlive()
@@ -129,7 +147,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void SendReset()
         {
-            // WriteSocket(new byte[0], EBombPacketType.Reset);
+            // Is there something supposed to be here?
         }
         
         public void SendAck(EBombPacketType protocol, int sequence)
@@ -185,9 +203,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
 
         public void Close()
         {
-            if (_keepAlive != null)
-                _keepAlive.Dispose();
-            //TODO: Stream
+            
         }
 
         public void UpdateOutgoingData()
@@ -198,7 +214,6 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         ~RUDPClient()
         {
             // TODO: Remove this connection from RUDP when its unused
-            // Close();
         }
 
         public byte[] GetData(out EBombPacketType type)
@@ -295,7 +310,6 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                         var gameDataSequenceNumber = br.ReadInt32();
                         
                         SendHandshake();
-                        _hasCompletedHandshake = true;
                         
                         break;   
                     }
