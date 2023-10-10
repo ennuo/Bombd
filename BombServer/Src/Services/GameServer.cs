@@ -1,21 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.IO;
 using System.Text;
-using System.Threading.Tasks;
-using System.IO;
-
-using BombServerEmu_MNR.Src.Protocols.Clients;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers;
-using BombServerEmu_MNR.Src.Helpers.Extensions;
-using BombServerEmu_MNR.Src.Log;
+using BombServerEmu_MNR.Src.Protocols.Clients;
 
 namespace BombServerEmu_MNR.Src.Services
 {
     class GameServer
     {
         public static uint ServerNameUID = 0x4e14793e;
+        public static uint CoiUID = 0x221C7BAF;
         
         public BombService Service { get; }
 
@@ -63,11 +57,101 @@ namespace BombServerEmu_MNR.Src.Services
                 // Client - Reliable - eNET_MESSAGE_PLAYER_STATE_UPDATE
                 
             // Give the client enough data to launch into modspot
-            var state = ((RUDPClient)client).State;
+            var state = client.State;
             if (state == 1 && !client.HasPendingGamedataAcks())
             {
-                
+                // This should probably be moved somewhere else for cleanliness,
+                // but I'm tired as hell, so it is what it is.
+                var coi = new[]
+                {
+                    new CircleOfInfluence.Theme
+                    {
+                        Type =  CircleOfInfluence.Type.Single,
+                        Name = "Hotseat",
+                        Index = 2,
+                        Events =
+                        {
+                            new CircleOfInfluence.Event
+                            {
+                                Name = "playin' king like it's poker",
+                                Id = 71025,
+                                Laps = 3,
+                                Description = "What even goes here?"
+                            }
+                        }
+                        
+                    },
+                    new CircleOfInfluence.Theme
+                    {
+                        Type =  CircleOfInfluence.Type.Single,
+                        Name = "DLC Demo",
+                        Index = 3,
+                        Events =
+                        {
+                            new CircleOfInfluence.Event
+                            {
+                                Description = "Disabled"
+                            }
+                        }
+                    },
+                    new CircleOfInfluence.Theme
+                    {
+                        Type = CircleOfInfluence.Type.Series,
+                        Name = "Showcase",
+                        Index = 0
+                    },
+                    new CircleOfInfluence.Theme
+                    {
+                        Type = CircleOfInfluence.Type.Series,
+                        Name = "Special Event",
+                        Index = 1,
+                    }
+                };
 
+                bw.Write((byte) ENetMessageType.SyncObjectCreate);
+                bw.Write((byte) 0);
+                bw.Write((ushort) 0x1fa8);
+                bw.Write(ServerNameUID);
+                bw.Write(CoiUID);
+                bw.Write(1);
+                
+                foreach (var theme in coi)
+                {
+                    bw.Write(Encoding.UTF8.GetBytes(theme.Name.PadRight(0x40, '\0')));
+                    bw.Write(Encoding.UTF8.GetBytes(theme.Url.PadRight(0x80, '\0')));
+                    bw.Write(theme.Index);
+
+                    // Series support up to 10 events, singles obviously only have a single
+                    var len = theme.Type == CircleOfInfluence.Type.Series ? 10 : 1;
+                    for (var i = 0; i < len; ++i)
+                    {
+                        if (i >= theme.Events.Count)
+                        {
+                            bw.Write(new byte[0x14c]);
+                            continue;
+                        }
+                        
+                        var evt = theme.Events[i];
+                        bw.Write(Encoding.UTF8.GetBytes(evt.Name.PadRight(0x40, '\0')));
+                        bw.Write(evt.Id);
+                        bw.Write(1);
+                        bw.Write(1);
+                        bw.Write(evt.Laps);
+                        
+                        // Don't feel like figuring out what these fields are right now
+                        bw.Write(new byte[]
+                        {
+                            0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+                            0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xFF, 0xFF, 0xFF, 0xFF,
+                            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x32, 0x33, 0x0A, 0x00
+                        });
+                        bw.Write(new byte[0x44]);
+                        bw.Write(Encoding.UTF8.GetBytes(evt.Description.PadRight(0x80, '\0')));
+                    }
+                    
+                }
+                
+                client.SendReliableGameData(bw);
                 client.State = 2;
             }
             
@@ -79,54 +163,18 @@ namespace BombServerEmu_MNR.Src.Services
                 bw.Write(ServerNameUID); 
                 bw.Write(0xdf81c28a);
                 client.SendReliableGameData(bw);
-
-                for (int i = 0; i < 2; ++i)
-                {
-                    bw.BaseStream.SetLength(0);
-                    bw.Write((byte) ENetMessageType.PlayerSessionInfo);
-                    bw.Write((byte) 0);
-                    bw.Write((ushort) 0x18);
-                    bw.Write(ServerNameUID);
-                    bw.Write(1);
-                    bw.Write(0xae967d6d);
-                    bw.Write(0xb0523902);
-                    bw.Write(0);
-                    client.SendReliableGameData(bw);   
-                }
-                
-                bw.BaseStream.SetLength(0);
-                bw.Write((byte) ENetMessageType.PlayerSessionInfo);
-                bw.Write((byte) 0);
-                bw.Write((ushort) 0x18);
-                bw.Write(ServerNameUID);
-                bw.Write(1);
-                bw.Write(0x9e7e0b96);
-                bw.Write(0xb0523902);
-                bw.Write(0);
-                client.SendReliableGameData(bw);
-                
-                bw.BaseStream.SetLength(0);
-                bw.Write((byte) ENetMessageType.PlayerSessionInfo);
-                bw.Write((byte) 0);
-                bw.Write((ushort) 0x18);
-                bw.Write(ServerNameUID);
-                bw.Write(1);
-                bw.Write(0xfe3d279c);
-                bw.Write(0xb0523902);
-                bw.Write(0);
-                client.SendReliableGameData(bw);
                 
                 bw.BaseStream.SetLength(0);
                 bw.Write((byte) ENetMessageType.SyncObjectCreate);
                 bw.Write((byte) 0);
                 bw.Write((ushort) 0x0058);
                 bw.Write(ServerNameUID);
-                bw.Write(0x221c7baf);
+                bw.Write(CoiUID);
                 bw.Write(0);
                 bw.Write(Encoding.ASCII.GetBytes("simserver".PadRight(0x20, '\0')));
                 bw.Write(Encoding.ASCII.GetBytes("coiInfo".PadRight(0x20, '\0')));
                 bw.Write((uint) ENetObjectType.NetCoiInfoPackage);
-                bw.Write(0x221c7baf);
+                bw.Write(CoiUID);
                 client.SendReliableGameData(bw);
                 
                 client.State = 1;

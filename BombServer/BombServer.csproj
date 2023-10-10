@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Src\DataTypes\CircleOfInfluence.cs" />
     <Compile Include="Src\DataTypes\GameBrowserAttributes.cs" />
     <Compile Include="Src\DataTypes\GameBrowserGame.cs" />
     <Compile Include="Src\DataTypes\GameManagerGame.cs" />
