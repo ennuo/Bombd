@@ -35,8 +35,19 @@ namespace BombServerEmu_MNR.Src.DataTypes
 
         public byte[] SerializeAttributes()
         {
-            // Double check structure, for now just return no attributes
-            return new GameBrowserAttributes().ToArray();
+            using (var ms = new MemoryStream())
+            using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
+            {
+                bw.Write(Attributes.Count);
+                foreach (var attribute in Attributes)
+                {
+                    bw.WriteStringMember(attribute.Key);
+                    bw.WriteStringMember(attribute.Value);
+                }
+                
+                bw.Flush();
+                return ms.ToArray();
+            }
         }
     }
 }
