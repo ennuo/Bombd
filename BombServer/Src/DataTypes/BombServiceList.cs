@@ -37,20 +37,24 @@ namespace BombServerEmu_MNR.Src.DataTypes
             using (var ms = new MemoryStream())
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
             {
+                // The game reads 8 ClusterServices
                 foreach (var serviceType in ServiceList)
                 {
-                    bw.WriteStringMember(serviceType.Key);
-                    bw.Write(serviceType.Value.Count);
-                    foreach (var service in serviceType.Value)
+                    bw.WriteStringMember(serviceType.Key); // mServiceName
+                    bw.Write(serviceType.Value.Count); // mNumServices
+                    
+                    // ServiceInstance
+                    foreach (var service in serviceType.Value) // Limit of 3
                     {
-                        bw.WriteStringMember(service.IP);
-                        bw.WriteStringMember(service.Uuid);
-                        bw.WriteStringMember(service.Port);
-                        bw.WriteStringMember(service.Protocol);
-                        bw.Write(0);
-                        bw.Write(1);    //SessionKey
+                        bw.WriteStringMember(service.IP); // mHostName
+                        bw.WriteStringMember(service.Uuid); // mServerUUID
+                        bw.WriteStringMember(service.Port); // mClientPort
+                        bw.WriteStringMember(service.Protocol); // mProtocol
+                        bw.Write(0); // mConnectOrder
+                        bw.Write(1); // mKey
                     }
                 }
+                
                 bw.Write(new byte[255]);    //HACK, the game uses a fixed amount of results, with unused slots being null, implement this
                 bw.Flush();
                 File.WriteAllBytes("ServiceList.bin", ms.ToArray());

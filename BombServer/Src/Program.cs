@@ -29,30 +29,15 @@ namespace BombServerEmu_MNR.Src
             Logging.RealLog(typeof(Program), "BombServer  Copyright (C) 2021  derole\n" +
                 "This program comes with ABSOLUTELY NO WARRANTY! This is free software, and you are welcome to redistribute it under certain conditions\n", LogType.Info);
             CheckArgs(args);
-
+            
             Services.Add(new Directory(ip, 10501).Service);
-
             Services.Add(new Matchmaking(ip, 10510).Service);  //Made up port
-            Services.Add(new GameManager(ip, 10505).Service);
-            Services.Add(new GameBrowser(ip, 10412).Service);
-            Services.Add(new GameServer(ip, 50002).Service);
-
-            Services.Add(new TextComm(ip, 10513).Service);  //Made up port
+            Services.Add(new GameManager(ip, 10505).Service); // Is this supposed to be 10412 actually?
+            Services.Add(new GameBrowser(ip, 10412).Service); 
             Services.Add(new PlayGroup(ip, 10514).Service);  //Made up port
+            Services.Add(new TextComm(ip, 10513).Service);  //Made up port
             Services.Add(new Stats(ip, 13452).Service);
-
-            // TEST
-            //new GameServer(1234);
-
-            //Services.Add(new Directory("127.0.0.1", 11501).Service);
-
-            //Services.Add(new Matchmaking("127.0.0.1", 11510).Service);
-            //Services.Add(new GameManager("127.0.0.1", 11511).Service);
-            //Services.Add(new GameBrowser("127.0.0.1", 11512).Service);
-
-            //Services.Add(new TextComm("127.0.0.1", 11513).Service);
-            //Services.Add(new PlayGroup("127.0.0.1", 11514).Service);
-            //Services.Add(new Stats("127.0.0.1", 11515).Service);
+            Services.Add(new GameServer(ip, 50002).Service);
         }
 
         static void CheckArgs(string[] args)
