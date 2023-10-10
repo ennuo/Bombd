@@ -28,8 +28,9 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
         }
         
-        void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
+        void DirectConnectHandler(IClient clientInterface, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
+            var client = (RUDPClient)clientInterface;
             // !!! Everything here is temporary and just meant for testing/reverse engineering
             // !!! the protocols used in multiplayer.
             
@@ -63,6 +64,13 @@ namespace BombServerEmu_MNR.Src.Services
                 
             // Give the client enough data to launch into modspot
             var state = ((RUDPClient)client).State;
+            if (state == 1 && !client.HasPendingGamedataAcks())
+            {
+                
+
+                client.State = 2;
+            }
+            
             if (state == 0)
             {
                 bw.Write((byte) ENetMessageType.RandomSeed);
@@ -117,11 +125,11 @@ namespace BombServerEmu_MNR.Src.Services
                 bw.Write(0);
                 bw.Write(Encoding.ASCII.GetBytes("simserver".PadRight(0x20, '\0')));
                 bw.Write(Encoding.ASCII.GetBytes("coiInfo".PadRight(0x20, '\0')));
-                bw.Write((uint) ENetObjectType.SeriesInfo);
+                bw.Write((uint) ENetObjectType.NetCoiInfoPackage);
                 bw.Write(0x221c7baf);
                 client.SendReliableGameData(bw);
                 
-                ((RUDPClient)client).State = 1;
+                client.State = 1;
             }
             else if (br.BaseStream.Length != 0)
             {
@@ -129,25 +137,6 @@ namespace BombServerEmu_MNR.Src.Services
                 
                 if (type == ENetMessageType.PlayerStateUpdate)
                 {
-                    // If it's the first update request, create the player
-                    // object on the server
-                    // if (state == 1)
-                    // {
-                    //     bw.Write((byte) ENetMessageType.SyncObjectCreate);
-                    //     bw.Write((byte) 0);
-                    //     bw.Write((ushort) 0x0058);
-                    //     bw.Write(ServerNameUID);
-                    //     bw.Write(0);
-                    //     bw.Write(client.Username.PadRight(0x20, '0'));
-                    //     bw.Write(client.Username.PadRight(0x20, '0'));
-                    //     bw.Write((uint) ENetObjectType.PlayerConfig);
-                    //     bw.Write(client.UserId);
-                    //     client.SendReliableGameData(bw);
-                    //     
-                    //     bw.BaseStream.SetLength(0);
-                    //     ((RUDPClient)client).State = 2;
-                    // }
-                    
                     // Send back a dummy bulk player state update
                     bw.Write((byte) ENetMessageType.BulkPlayerStateUpdate);
                     bw.Write((byte) 0);
@@ -167,7 +156,7 @@ namespace BombServerEmu_MNR.Src.Services
 
             }
             
-            ((RUDPClient)client).SendPendingGamedataAcks();
+            client.SendPendingGamedataAcks();
         }
     }
 }

@@ -5,7 +5,7 @@ using System.Threading;
 using System.Net;
 using System.Net.Sockets;
 using System.IO;
-
+using System.Linq;
 using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers;
@@ -125,41 +125,47 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         
         public void SendReliableGameData(EndiannessAwareBinaryWriter bw)
         {
-            // TODO: Split up packets, not implementing this right now since I just
-            // want to test something.
-            
             bw.Flush();
-            var payload = ((MemoryStream)bw.BaseStream).ToArray();
-
-            var packet = new byte[0x10 + payload.Length];
-            Buffer.BlockCopy(payload, 0, packet, 0x10, payload.Length);
-
-            packet[0] = (byte)EBombPacketType.ReliableGameData;
-            packet[1] = 0xFE;
-            packet[2] = 0x2;
-            packet[3] = 0x1;
-
-            var sequenceNumber = _gameDataSeqNumber++;
-            packet[4] = (byte)((sequenceNumber >> 24) & 0xff);
-            packet[5] = (byte)((sequenceNumber >> 16) & 0xff);
-            packet[6] = (byte)((sequenceNumber >> 8) & 0xff);
-            packet[7] = (byte)(sequenceNumber & 0xff);
-
+            var data = ((MemoryStream)bw.BaseStream).ToArray();
+            var offset = 0;
             var groupId = _nextGroupId++;
-            packet[8] = (byte)((groupId >> 8) & 0xff);
-            packet[9] = (byte)(groupId & 0xff);
-            
-            packet[10] = (byte)((payload.Length >> 8) & 0xff);
-            packet[11] = (byte)(payload.Length & 0xff);
-            
-            packet[14] = (byte)((payload.Length >> 8) & 0xff);
-            packet[15] = (byte)(payload.Length & 0xff);
-            
-            var checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
-            packet[12] = (byte)((checksum >> 8) & 0xff);
-            packet[13] = (byte)(checksum & 0xff);
-            
-            SendReliableData(packet, EBombPacketType.ReliableGameData, sequenceNumber);
+            do
+            {
+                var payloadSize = Math.Min(data.Length - offset, MAX_PAYLOAD_SIZE);
+                var packetSize = 0x10 + payloadSize;
+                
+                var packet = new byte[packetSize];
+                Buffer.BlockCopy(data, offset, packet, 0x10, payloadSize);
+
+                packet[0] = (byte)EBombPacketType.ReliableGameData;
+                packet[1] = 0xFE;
+                packet[2] = 0x2;
+                packet[3] = (byte)((offset + payloadSize >= data.Length) ? 1 : 0);
+
+                var sequenceNumber = _gameDataSeqNumber++;
+                packet[4] = (byte)((sequenceNumber >> 24) & 0xff);
+                packet[5] = (byte)((sequenceNumber >> 16) & 0xff);
+                packet[6] = (byte)((sequenceNumber >> 8) & 0xff);
+                packet[7] = (byte)(sequenceNumber & 0xff);
+                
+                packet[8] = (byte)((groupId >> 8) & 0xff);
+                packet[9] = (byte)(groupId & 0xff);
+        
+                packet[10] = (byte)((data.Length >> 8) & 0xff);
+                packet[11] = (byte)(data.Length & 0xff);
+                
+                packet[14] = (byte)((payloadSize >> 8) & 0xff);
+                packet[15] = (byte)(payloadSize & 0xff);
+        
+                var checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
+                packet[12] = (byte)((checksum >> 8) & 0xff);
+                packet[13] = (byte)(checksum & 0xff);
+        
+                SendReliableData(packet, EBombPacketType.ReliableGameData, sequenceNumber);
+
+                offset += payloadSize;
+                
+            } while (offset < data.Length);
         }
 
         public void SendUnreliableGameData(EndiannessAwareBinaryWriter bw)
@@ -299,6 +305,11 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 Client.Send(ack.Datagram, ack.Datagram.Length, RemoteEndPoint);
                 ack.ResendTime = DateTime.Now.AddMilliseconds(RESEND_TIME_MS);
             }
+        }
+
+        public bool HasPendingGamedataAcks()
+        {
+            return _waitingForAckList.Any(ack => ack.Protocol == EBombPacketType.ReliableGameData);
         }
 
         public void SendPendingGamedataAcks()
