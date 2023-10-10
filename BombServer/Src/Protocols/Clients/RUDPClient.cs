@@ -382,11 +382,11 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         {
             while (_packetQueue.Count == 0)
             {
-                // if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
-                // {
-                //     _shouldClose = true;
-                //     return false;
-                // }
+                if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
+                {
+                    _shouldClose = true;
+                    return false;
+                }
                 
                 Thread.Sleep(10);   //Find a better way of blocking   
             }
