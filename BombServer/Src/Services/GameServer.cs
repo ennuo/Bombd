@@ -26,14 +26,14 @@ namespace BombServerEmu_MNR.Src.Services
 
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
         }
-
+        
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
             // Gamedata messages
-            //  u8 type
-            //  u8 ?
-            //  u16 size
-            //  u32 ?
+            //  u8 Type
+            //  u8 SizeExtra, dummy data? Or does it matter?
+            //  u16 Size
+            //  u32 SenderNameID
             
             // Messages are probably different between MNR and Karting, so let's see...
             
@@ -44,8 +44,16 @@ namespace BombServerEmu_MNR.Src.Services
                 // Server - Reliable - eNET_MESSAGE_TYPE_RANDOM_SEED
                     // The server sends a seed to the player, should be unique per "session?"
                     // Payload is a single integer seed
+                    
+            
                 
-                // Server - Reliable - eNET_MESSAGE_PLAYER_SESSION_INFO (I'm fairly sure that's what this is)
+                // Server - Reliable - eNET_MESSAGE_PLAYER_SESSION_INFO x PlayerCount
+                
+                // Server - Reliable - eNET_MESSAGE_SYNC_OBJECT_CREATE
+                    // OwnerName = simserver
+                    // DebugTag = coiInfo
+                    // Type = 5 (SeriesInfo?)
+                    // GUID = 0x221c7baf (Should this be random or is it supposed to be specific?)
                 
                 // Client - Reliable - eNET_MESSAGE_PLAYER_STATE_UPDATE
                 
@@ -54,10 +62,10 @@ namespace BombServerEmu_MNR.Src.Services
             if (state == 0)
             {
                 bw.Write((byte) ENetMessageType.RandomSeed);
-                bw.Write((byte) 0); // ???
+                bw.Write((byte) 0);
                 bw.Write((ushort) 0x000c);
                 bw.Write(0x4e14793e); 
-                bw.Write(0x3f81c28a);
+                bw.Write(0xdf81c28a);
                 
                 client.SendReliableGameData(bw);
                 

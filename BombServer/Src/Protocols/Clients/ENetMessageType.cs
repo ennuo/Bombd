@@ -28,14 +28,50 @@
         RankedEventVeto = 0x29,
         ArbitratedItemAcquireFailed = 0x2a,
         MessageUnreliableBlock = 0x2b,
+        
+        // Data starts at 0x8
+            // uint NumDatas
+            // each Data is 0xC bytes in size
+                // uint unk
+                // uint unk
+                // uint unk
         PlayerSessionInfo = 0x2c,
+        
+        
+        // Two types, local and remote
+        // Remote (Server -> Client):
+            // Data starts at 0x10
+            // char OwnerName[32]
+            // char DebugTag[32]
+            // uint Type
+            // uint GUID
+        // Local (Client -> Server):
+            // Data starts at 0x8
+            // uint GUID
+            // uint Type
+            // char* Data
         SyncObjectCreate = 0x2d,
+        
         GameroomStopTimer = 0x2e,
         PlayerFinishedEvent = 0x2f,
         SpectatorInfo = 0x30,
         VoipPacket = 0x33,
+        
+        // Data starts at 0x8
+        // uint NumUpdates
+        // each player state is 0x18 bytes in size
+            //  uint NameUID
+            //  uint PcId
+            //  uint KartId
+            //  uint CharacterId
+            //  uint Away
+            //  uint Mic
         BulkPlayerStateUpdate = 0x34,
+        
+        // Data starts at 0x8
+        // uint Seed
         RandomSeed = 0x35,
+        
         GameroomDownloadTracksComplete = 0x37,
         GameroomDownloadTracksFailed = 0x38,
         ReadyForNisStart = 0x39,

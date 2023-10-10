@@ -49,10 +49,12 @@
     <Compile Include="Src\DataTypes\BombAttributeList.cs" />
     <Compile Include="Src\DataTypes\BombGame.cs" />
     <Compile Include="Src\DataTypes\BombGameList.cs" />
-    <Compile Include="Src\DataTypes\BombGamePlayer.cs" />
+    <Compile Include="Src\DataTypes\BombGameBrowserPlayer.cs" />
+    <Compile Include="Src\DataTypes\BombGameManagerPlayer.cs" />
     <Compile Include="Src\DataTypes\BombService.cs" />
     <Compile Include="Src\DataTypes\BombServiceList.cs" />
     <Compile Include="Src\DataTypes\BombXml.cs" />
+    <Compile Include="Src\DataTypes\NetworkMessage\NetworkMessage.cs" />
     <Compile Include="Src\DataTypes\NPTicket.cs" />
     <Compile Include="Src\Helpers\BombHMAC.cs" />
     <Compile Include="Src\Helpers\Extensions\BinaryExtensions.cs" />
@@ -68,6 +70,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Src\Protocols\Clients\EBombPacketType.cs" />
     <Compile Include="Src\Protocols\Clients\ENetMessageType.cs" />
+    <Compile Include="Src\Protocols\Clients\ENetObjectType.cs" />
     <Compile Include="Src\Protocols\Clients\IClient.cs" />
     <Compile Include="Src\Protocols\Clients\RUDPClient.cs" />
     <Compile Include="Src\Protocols\Clients\SSLClient.cs" />

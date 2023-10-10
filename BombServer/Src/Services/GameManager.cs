@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 using BombServerEmu_MNR.Src.Protocols.Clients;
@@ -61,19 +62,50 @@ namespace BombServerEmu_MNR.Src.Services
             xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
             xml.AddParam("sessionId", "1");
             xml.AddParam("listenIP", gameserver != null ? gameserver.IP : "127.0.0.1");
-            xml.AddParam("listenPort", gameserver != null ? gameserver.Port : 50002); 
+            xml.AddParam("listenPort", gameserver != null ? gameserver.Port : 50002);
             
             client.SendNetcodeData(xml);
         }
         
         void JoinGame(BombService service, IClient client, BombXml xml)
         {
+            var game = xml.GetParam("gamename");
+            
             xml.SetMethod("joinGame");
             xml.AddParam("listenIP", "127.0.0.1");
             xml.AddParam("listenPort", 50002); 
             xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
             xml.AddParam("sessionId", "1");
-            client.SendNetcodeData(xml);
+            
+            // TODO: Keep track of actual games and send back
+            // proper username/id/etc
+            
+            // client.SendNetcodeData(xml);
+            //
+            // Thread.Sleep(2000);
+            // xml.SetMethod("joinGameCompleted");
+            // xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            // xml.AddParam("gamename", game);
+            // xml.AddParam("gamebrowsername", game);
+            // xml.AddParam("gameid", "1");
+            // xml.AddParam("numplayerslist", "1");
+            //
+            // var attributes = new BombAttributeList();
+            // var player = new BombGameManagerPlayer()
+            // {
+            //     PlayerId = 1,
+            //     UserId = 71025,
+            //     UserName = "Arihzi",
+            //     GuestCount = 0
+            // };
+            //
+            // xml.AddParam("playerlist", Convert.ToBase64String(player.ToArray()));
+            // xml.AddParam("attributes", Convert.ToBase64String(attributes.ToArray()));
+            //
+            // client.SendNetcodeData(xml);
+            
+            
+            
         }
 
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)

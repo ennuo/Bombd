@@ -12,7 +12,7 @@ namespace BombServerEmu_MNR.Src.DataTypes
 {
     class BombGame
     {
-        public List<BombGamePlayer> Players { get; set; } = new List<BombGamePlayer>();
+        public List<BombGameBrowserPlayer> Players { get; set; } = new List<BombGameBrowserPlayer>();
         public int TimeSinceLastPlayerJoin { get; set; }
         public string GameName { get; set; }
         public string DisplayName { get; set; }

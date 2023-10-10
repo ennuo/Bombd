@@ -122,6 +122,10 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             packet[5] = (byte)((sequenceNumber >> 16) & 0xff);
             packet[6] = (byte)((sequenceNumber >> 8) & 0xff);
             packet[7] = (byte)(sequenceNumber & 0xff);
+
+            var groupId = _nextGroupId++;
+            packet[8] = (byte)((groupId >> 8) & 0xff);
+            packet[9] = (byte)(groupId & 0xff);
             
             packet[10] = (byte)((payload.Length >> 8) & 0xff);
             packet[11] = (byte)(payload.Length & 0xff);
@@ -378,11 +382,11 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         {
             while (_packetQueue.Count == 0)
             {
-                if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
-                {
-                    _shouldClose = true;
-                    return false;
-                }
+                // if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
+                // {
+                //     _shouldClose = true;
+                //     return false;
+                // }
                 
                 Thread.Sleep(10);   //Find a better way of blocking   
             }
