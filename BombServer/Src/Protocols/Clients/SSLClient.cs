@@ -26,6 +26,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             get { return Client.Connected && stream.CanRead && stream.CanWrite; }
         }
         public bool HasDirectConnection { get; set; }
+        public string Username { get; set; }
+        public int UserId { get; set; }
         public IPEndPoint RemoteEndPoint { get; }
 
         public BombService Service { get; }

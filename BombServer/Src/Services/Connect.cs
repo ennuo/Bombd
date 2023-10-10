@@ -20,6 +20,9 @@ namespace BombServerEmu_MNR.Src.Services
         {
             var ticket = new NPTicket(xml.GetParam("NPTicket"));
 
+            client.Username = ticket.OnlineId;
+            client.UserId = (int) ticket.UserId;
+
             xml.SetName("connect");
             xml.SetMethod("startConnect");
             if (service.IsDirectConnect) {

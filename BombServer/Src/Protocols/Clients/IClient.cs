@@ -14,6 +14,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
     {
         bool IsConnected { get; }
         bool HasDirectConnection { get; set; }
+        string Username { get; set; }
+        int UserId { get; set; }
         IPEndPoint RemoteEndPoint { get; }
         BombService Service { get; }
 
