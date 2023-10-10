@@ -29,16 +29,14 @@ namespace BombServerEmu_MNR.Src.Services
 
         void ListGamesHandler(BombService service, IClient client, BombXml xml)
         {
-            var attributes = new BombAttributeList(Convert.FromBase64String(xml.GetParam("attributes")));
+            var attributes = new GameBrowserAttributes(Convert.FromBase64String(xml.GetParam("attributes")));
             Logging.Log(typeof(GameBrowser), "{0}", LogType.Debug, attributes);
-
-            //This response is 120% correct, investigate the matchmaking config, thats likely why the game wont create a game
+            
             xml.SetMethod("listGames");
 
             var timeOfDeath = Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds);
-
             var gamemanager = Program.Services.FirstOrDefault(match => match.Name == "gamemanager");
-
+            
             var gameList = new ServerGameList
             {
                 TimeOfDeath = (int) timeOfDeath,
@@ -54,10 +52,10 @@ namespace BombServerEmu_MNR.Src.Services
                 DisplayName = "KartPark"
             };
             
-            game.GameAttributes.Add("__IS_RANKED", "0");
-            game.GameAttributes.Add("__JOIN_MODE", "OPEN");
-            game.GameAttributes.Add("__MM_MODE_G", "OPEN");
-            game.GameAttributes.Add("__MAX_PLAYERS", "8");
+            game.Attributes.Add("__IS_RANKED", "0");
+            game.Attributes.Add("__JOIN_MODE", "OPEN");
+            game.Attributes.Add("__MM_MODE_G", "OPEN");
+            game.Attributes.Add("__MAX_PLAYERS", "8");
             
             gameList.Add(game);
 

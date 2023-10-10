@@ -9,14 +9,14 @@ using BombServerEmu_MNR.Src.Helpers;
 
 namespace BombServerEmu_MNR.Src.DataTypes
 {
-    class BombAttributeList : Dictionary<string, string>
+    class GameBrowserAttributes : Dictionary<string, string>
     {
         const int LIST_START = 0x00E86998;
         const int LIST_ENTRY = 0x00E869B0;
         const int LIST_COUNT = 0x20;
 
-        public BombAttributeList() { }
-        public BombAttributeList(byte[] data)
+        public GameBrowserAttributes() { }
+        public GameBrowserAttributes(byte[] data)
         {
             if (data.Length != 0x884)
                 return;

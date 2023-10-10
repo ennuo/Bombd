@@ -46,8 +46,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Src\DataTypes\BombAttributeList.cs" />
+    <Compile Include="Src\DataTypes\GameBrowserAttributes.cs" />
     <Compile Include="Src\DataTypes\GameBrowserGame.cs" />
+    <Compile Include="Src\DataTypes\GameManagerGame.cs" />
     <Compile Include="Src\DataTypes\ServerGameList.cs" />
     <Compile Include="Src\DataTypes\GameBrowserPlayer.cs" />
     <Compile Include="Src\DataTypes\GameManagerPlayer.cs" />
