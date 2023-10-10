@@ -12,7 +12,7 @@ using BombServerEmu_MNR.Src.Services;
 namespace BombServerEmu_MNR.Src.DataTypes
 {
 
-    class BombGameList : List<BombGame>
+    class ServerGameList : List<GameBrowserGame>
     {
         public int TimeOfDeath { get; set; }
         public string ClusterUuid { get; set; }

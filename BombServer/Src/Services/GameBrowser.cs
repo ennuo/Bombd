@@ -39,7 +39,7 @@ namespace BombServerEmu_MNR.Src.Services
 
             var gamemanager = Program.Services.FirstOrDefault(match => match.Name == "gamemanager");
 
-            var gameList = new BombGameList
+            var gameList = new ServerGameList
             {
                 TimeOfDeath = (int) timeOfDeath,
                 ClusterUuid = Program.ClusterUuid,
@@ -48,7 +48,7 @@ namespace BombServerEmu_MNR.Src.Services
                 GameManagerUUID = gamemanager != null ? gamemanager.Uuid : ""
             };
 
-            var game = new BombGame
+            var game = new GameBrowserGame
             {
                 GameName = "debug_kart_lobby",
                 DisplayName = "KartPark"

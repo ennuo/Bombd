@@ -10,7 +10,7 @@ using BombServerEmu_MNR.Src.Helpers.Extensions;
 
 namespace BombServerEmu_MNR.Src.DataTypes
 {
-    class BombGameManagerPlayer
+    class GameManagerPlayer
     {
         public int PlayerId { get; set; }
         public int UserId { get; set; }

@@ -47,10 +47,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Src\DataTypes\BombAttributeList.cs" />
-    <Compile Include="Src\DataTypes\BombGame.cs" />
-    <Compile Include="Src\DataTypes\BombGameList.cs" />
-    <Compile Include="Src\DataTypes\BombGameBrowserPlayer.cs" />
-    <Compile Include="Src\DataTypes\BombGameManagerPlayer.cs" />
+    <Compile Include="Src\DataTypes\GameBrowserGame.cs" />
+    <Compile Include="Src\DataTypes\ServerGameList.cs" />
+    <Compile Include="Src\DataTypes\GameBrowserPlayer.cs" />
+    <Compile Include="Src\DataTypes\GameManagerPlayer.cs" />
     <Compile Include="Src\DataTypes\BombService.cs" />
     <Compile Include="Src\DataTypes\BombServiceList.cs" />
     <Compile Include="Src\DataTypes\BombXml.cs" />

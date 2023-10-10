@@ -10,7 +10,7 @@ using BombServerEmu_MNR.Src.Helpers.Extensions;
 
 namespace BombServerEmu_MNR.Src.DataTypes
 {
-    class BombGameBrowserPlayer
+    class GameBrowserPlayer
     {
         public string PlayerName { get; set; } = string.Empty;
         public List<string> Guests { get; set; } = new List<string>();
