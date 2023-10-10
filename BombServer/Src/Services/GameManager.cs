@@ -37,7 +37,7 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("reserveGameSlotsForPlayers", null);
             Service.RegisterMethod("dropReservedGame", null);
             Service.RegisterMethod("migrateToGame", null);
-            Service.RegisterMethod("requestDirectHostConnection", RequestDirectHostConnection);    //???
+            Service.RegisterMethod("requestDirectHostConnection", null);
             Service.RegisterMethod("directConnectionStatus", null);
             Service.RegisterMethod("publishAttributes", null);
             Service.RegisterMethod("kickPlayer", null);
@@ -51,20 +51,6 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("requestBusiestCount", null); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
 
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
-        }
-
-        void RequestDirectHostConnection(BombService service, IClient client, BombXml xml)
-        {
-            var gameserver = Program.Services.FirstOrDefault(match => match.Name == "gameserver");
-
-            xml.SetMethod("requestDirectHostConnection");
-            
-            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
-            xml.AddParam("sessionId", "1");
-            xml.AddParam("listenIP", gameserver != null ? gameserver.IP : "127.0.0.1");
-            xml.AddParam("listenPort", gameserver != null ? gameserver.Port : 50002);
-            
-            client.SendNetcodeData(xml);
         }
         
         void JoinGame(BombService service, IClient client, BombXml xml)
