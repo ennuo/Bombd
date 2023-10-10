@@ -9,6 +9,7 @@ using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Services;
 using BombServerEmu_MNR.Src.Helpers;
+using System.Net;
 
 namespace BombServerEmu_MNR.Src
 {
@@ -18,6 +19,10 @@ namespace BombServerEmu_MNR.Src
 
         public static string ClusterUuid { get; } = UUID.GenerateUUID();
 
+        public static bool DisableTLS = false;
+
+        private static string ip = "127.0.0.1";
+
         static void Main(string[] args)
         {
             Logging.OpenLogFile();
@@ -25,16 +30,16 @@ namespace BombServerEmu_MNR.Src
                 "This program comes with ABSOLUTELY NO WARRANTY! This is free software, and you are welcome to redistribute it under certain conditions\n", LogType.Info);
             CheckArgs(args);
 
-            Services.Add(new Directory("127.0.0.1", 10501).Service);
+            Services.Add(new Directory(ip, 10501).Service);
 
-            Services.Add(new Matchmaking("127.0.0.1", 10510).Service);  //Made up port
-            Services.Add(new GameManager("127.0.0.1", 10505).Service);
-            Services.Add(new GameBrowser("127.0.0.1", 10412).Service);
-            Services.Add(new GameServer(50002).Service);
+            Services.Add(new Matchmaking(ip, 10510).Service);  //Made up port
+            Services.Add(new GameManager(ip, 10505).Service);
+            Services.Add(new GameBrowser(ip, 10412).Service);
+            Services.Add(new GameServer(ip, 50002).Service);
 
-            Services.Add(new TextComm("127.0.0.1", 10513).Service);  //Made up port
-            Services.Add(new PlayGroup("127.0.0.1", 10514).Service);  //Made up port
-            Services.Add(new Stats("127.0.0.1", 13452).Service);
+            Services.Add(new TextComm(ip, 10513).Service);  //Made up port
+            Services.Add(new PlayGroup(ip, 10514).Service);  //Made up port
+            Services.Add(new Stats(ip, 13452).Service);
 
             // TEST
             //new GameServer(1234);
@@ -56,6 +61,21 @@ namespace BombServerEmu_MNR.Src
                 switch (args[i]) {
                     case "-loglevel":
                         Logging.logLevel = (LogLevel)Enum.Parse(typeof(LogLevel), args[i + 1]);
+                        break;
+
+                    case "-ip":
+                        IPAddress Output;
+                        if (!IPAddress.TryParse(args[i + 1], out Output))
+                        {
+                            Logging.RealLog(typeof(Program), $"{args[i + 1]} is not a valid ip address", LogType.Error);
+                            Environment.Exit(0);
+                        }
+                        ip = args[i + 1];
+                        break;
+
+                    case "-notls":
+                        DisableTLS = true;
+                        Logging.RealLog(typeof(Program), "TLS has been disabled", LogType.Info);
                         break;
                 }
             }

@@ -24,7 +24,7 @@ namespace BombServerEmu_MNR.Src.Protocols
         public SSL(BombService service, string ip, ushort port)
         {
             Service = service;
-            Listener = new TcpListener(IPAddress.Parse(ip), port);
+            Listener = new TcpListener(IPAddress.Parse("0.0.0.0"), port); //bind to any address
         }
 
         public void SetCert(string certPath, string certPass)

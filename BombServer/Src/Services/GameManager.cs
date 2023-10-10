@@ -15,14 +15,12 @@ namespace BombServerEmu_MNR.Src.Services
     {
 
         public BombService Service { get; }
-        public static string UUID;
         public static uint HashSalt = 1396788308;
         
 
         public GameManager(string ip, ushort port)
         {
             Service = new BombService("gamemanager", EProtocolType.TCP, false, ip, port, "output.pfx", "1234");
-            UUID = Service.Uuid;
 
             Service.RegisterMethod("startConnect", Connect.StartConnectHandler);
             Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandlerDEBUG);
@@ -42,16 +40,26 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("directConnectionStatus", null);
             Service.RegisterMethod("publishAttributes", null);
             Service.RegisterMethod("kickPlayer", null);
+            //LBPK requests those from game manager, but not sure about MNR
+            Service.RegisterMethod("hostGame", null); //called when your friend is connecting to your pod
+            Service.RegisterMethod("listGamesMatchmaking", null); //seems to have the same response as listGames, but i'll leave it as null for now
+            Service.RegisterMethod("beginMatchmaking", null);
+            Service.RegisterMethod("cancelMatchmaking", null);
+            Service.RegisterMethod("requestPlayerCount", null); //requested for each planet that has levels that need matchmaking, the request contains a binary that has a list of level ids on that planet
+            Service.RegisterMethod("RequestGlobalPlayerCount", null); //not sure, got called randomly while i was in the pod menu, probably returns an integer to display how many player are currently in the game
+            Service.RegisterMethod("requestBusiestCount", null); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
 
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
         }
 
         void RequestDirectHostConnection(BombService service, IClient client, BombXml xml)
         {
+            var gameserver = Program.Services.FirstOrDefault(match => match.Name == "gameserver");
+
             xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
             xml.AddParam("sessionId", "1");
-            xml.AddParam("listenIP", "127.0.0.1");
-            xml.AddParam("listenPort", 50002); 
+            xml.AddParam("listenIP", gameserver != null ? gameserver.IP : "127.0.0.1");
+            xml.AddParam("listenPort", gameserver != null ? gameserver.Port : 50002); 
             
             client.SendNetcodeData(xml);
         }

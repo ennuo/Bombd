@@ -45,6 +45,7 @@ namespace BombServerEmu_MNR.Src.DataTypes
             Uuid = UUID.GenerateUUID();
             if (protocol == EProtocolType.TCP) {
                 Listener = new SSL(this, ip, port);
+                if (!Program.DisableTLS) Listener.SetCert(string.Format(@"Data\Certs\{0}", cert), pass);
             } else {
                 Listener = new RUDP(this, ip, port);
             }

@@ -37,13 +37,15 @@ namespace BombServerEmu_MNR.Src.Services
 
             var timeOfDeath = Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds);
 
+            var gamemanager = Program.Services.FirstOrDefault(match => match.Name == "gamemanager");
+
             var gameList = new BombGameList
             {
                 TimeOfDeath = (int) timeOfDeath,
                 ClusterUuid = Program.ClusterUuid,
-                GameManagerIP = "127.0.0.1",
-                GameManagerPort = "10505",
-                GameManagerUUID = GameManager.UUID
+                GameManagerIP = gamemanager != null ? gamemanager.IP : "127.0.0.1",
+                GameManagerPort = gamemanager != null ? gamemanager.Port.ToString() : "10505",
+                GameManagerUUID = gamemanager != null ? gamemanager.Uuid : ""
             };
 
             var game = new BombGame
