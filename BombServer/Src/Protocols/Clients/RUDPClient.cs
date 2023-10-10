@@ -100,15 +100,46 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             } while (offset < data.Length);
         }
 
+        // TODO: Ensure reliability
         public void SendReliableGameData(EndiannessAwareBinaryWriter bw)
         {
-            // WriteSocket(((MemoryStream)bw.BaseStream).ToArray(), EBombPacketType.ReliableGameData);
+            // TODO: Split up packets, not implementing this right now since I just
+            // want to test something.
+            
+            bw.Flush();
+            var payload = ((MemoryStream)bw.BaseStream).ToArray();
+
+            var packet = new byte[0x10 + payload.Length];
+            Buffer.BlockCopy(payload, 0, packet, 0x10, payload.Length);
+
+            packet[0] = (byte)EBombPacketType.ReliableGameData;
+            packet[1] = 0xFE;
+            packet[2] = 0x2;
+            packet[3] = 0x1;
+
+            var sequenceNumber = _gameDataSeqNumber++;
+            packet[4] = (byte)((sequenceNumber >> 24) & 0xff);
+            packet[5] = (byte)((sequenceNumber >> 16) & 0xff);
+            packet[6] = (byte)((sequenceNumber >> 8) & 0xff);
+            packet[7] = (byte)(sequenceNumber & 0xff);
+            
+            packet[10] = (byte)((payload.Length >> 8) & 0xff);
+            packet[11] = (byte)(payload.Length & 0xff);
+            
+            packet[14] = (byte)((payload.Length >> 8) & 0xff);
+            packet[15] = (byte)(payload.Length & 0xff);
+            
+            var checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
+            packet[12] = (byte)((checksum >> 8) & 0xff);
+            packet[13] = (byte)(checksum & 0xff);
+
+            Client.Send(packet, packet.Length, RemoteEndPoint);
         }
 
         public void SendUnreliableGameData(EndiannessAwareBinaryWriter bw)
         {
             bw.Flush();
-            var payload = ((MemoryStream)bw.BaseStream).ToArray(); // Gross?
+            var payload = ((MemoryStream)bw.BaseStream).ToArray();
 
             var packet = new byte[0x8 + payload.Length];
             Buffer.BlockCopy(payload, 0, packet, 0x8, payload.Length);

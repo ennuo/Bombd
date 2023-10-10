@@ -67,6 +67,7 @@
     <Compile Include="Src\Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Src\Protocols\Clients\EBombPacketType.cs" />
+    <Compile Include="Src\Protocols\Clients\ENetMessageType.cs" />
     <Compile Include="Src\Protocols\Clients\IClient.cs" />
     <Compile Include="Src\Protocols\Clients\RUDPClient.cs" />
     <Compile Include="Src\Protocols\Clients\SSLClient.cs" />
