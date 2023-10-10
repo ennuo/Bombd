@@ -63,8 +63,17 @@ namespace BombServerEmu_MNR.Src.Services
             xml.AddParam("listenPort",  gameserver != null ? gameserver.Port : 50002); 
             xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
             xml.AddParam("sessionId", "1");
-            
             client.SendNetcodeData(xml);
+            
+            xml.SetMethod("requestDirectHostConnection");
+            xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            xml.AddParam("listenIP", gameserver != null ? gameserver.IP : "127.0.0.1");
+            xml.AddParam("listenPort",  gameserver != null ? gameserver.Port : 50002); 
+            xml.AddParam("hashSalt", GameManager.HashSalt.ToString());
+            xml.AddParam("sessionId", "1");
+            client.SendNetcodeData(xml);
+            
+            
             
             // TODO: Keep track of actual games and send back
             // proper username/id/etc

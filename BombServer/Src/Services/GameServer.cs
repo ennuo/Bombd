@@ -13,9 +13,10 @@ using BombServerEmu_MNR.Src.Log;
 
 namespace BombServerEmu_MNR.Src.Services
 {
-    //Im not so sure the game uses P2P, as a just in case
     class GameServer
     {
+        public static uint ServerNameUID = 0x4e14793e;
+        
         public BombService Service { get; }
 
         public GameServer(string ip, ushort port)
@@ -29,6 +30,9 @@ namespace BombServerEmu_MNR.Src.Services
         
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
+            // !!! Everything here is temporary and just meant for testing/reverse engineering
+            // !!! the protocols used in multiplayer.
+            
             // Gamedata messages
             //  u8 Type
             //  u8 SizeExtra, dummy data? Or does it matter?
@@ -64,13 +68,106 @@ namespace BombServerEmu_MNR.Src.Services
                 bw.Write((byte) ENetMessageType.RandomSeed);
                 bw.Write((byte) 0);
                 bw.Write((ushort) 0x000c);
-                bw.Write(0x4e14793e); 
+                bw.Write(ServerNameUID); 
                 bw.Write(0xdf81c28a);
+                client.SendReliableGameData(bw);
+
+                for (int i = 0; i < 2; ++i)
+                {
+                    bw.BaseStream.SetLength(0);
+                    bw.Write((byte) ENetMessageType.PlayerSessionInfo);
+                    bw.Write((byte) 0);
+                    bw.Write((ushort) 0x18);
+                    bw.Write(ServerNameUID);
+                    bw.Write(1);
+                    bw.Write(0xae967d6d);
+                    bw.Write(0xb0523902);
+                    bw.Write(0);
+                    client.SendReliableGameData(bw);   
+                }
                 
+                bw.BaseStream.SetLength(0);
+                bw.Write((byte) ENetMessageType.PlayerSessionInfo);
+                bw.Write((byte) 0);
+                bw.Write((ushort) 0x18);
+                bw.Write(ServerNameUID);
+                bw.Write(1);
+                bw.Write(0x9e7e0b96);
+                bw.Write(0xb0523902);
+                bw.Write(0);
+                client.SendReliableGameData(bw);
+                
+                bw.BaseStream.SetLength(0);
+                bw.Write((byte) ENetMessageType.PlayerSessionInfo);
+                bw.Write((byte) 0);
+                bw.Write((ushort) 0x18);
+                bw.Write(ServerNameUID);
+                bw.Write(1);
+                bw.Write(0xfe3d279c);
+                bw.Write(0xb0523902);
+                bw.Write(0);
+                client.SendReliableGameData(bw);
+                
+                bw.BaseStream.SetLength(0);
+                bw.Write((byte) ENetMessageType.SyncObjectCreate);
+                bw.Write((byte) 0);
+                bw.Write((ushort) 0x0058);
+                bw.Write(ServerNameUID);
+                bw.Write(0x221c7baf);
+                bw.Write(0);
+                bw.Write(Encoding.ASCII.GetBytes("simserver".PadRight(0x20, '\0')));
+                bw.Write(Encoding.ASCII.GetBytes("coiInfo".PadRight(0x20, '\0')));
+                bw.Write((uint) ENetObjectType.SeriesInfo);
+                bw.Write(0x221c7baf);
                 client.SendReliableGameData(bw);
                 
                 ((RUDPClient)client).State = 1;
             }
+            else if (br.BaseStream.Length != 0)
+            {
+                var type = (ENetMessageType)br.ReadByte();
+                
+                if (type == ENetMessageType.PlayerStateUpdate)
+                {
+                    // If it's the first update request, create the player
+                    // object on the server
+                    // if (state == 1)
+                    // {
+                    //     bw.Write((byte) ENetMessageType.SyncObjectCreate);
+                    //     bw.Write((byte) 0);
+                    //     bw.Write((ushort) 0x0058);
+                    //     bw.Write(ServerNameUID);
+                    //     bw.Write(0);
+                    //     bw.Write(client.Username.PadRight(0x20, '0'));
+                    //     bw.Write(client.Username.PadRight(0x20, '0'));
+                    //     bw.Write((uint) ENetObjectType.PlayerConfig);
+                    //     bw.Write(client.UserId);
+                    //     client.SendReliableGameData(bw);
+                    //     
+                    //     bw.BaseStream.SetLength(0);
+                    //     ((RUDPClient)client).State = 2;
+                    // }
+                    
+                    // Send back a dummy bulk player state update
+                    bw.Write((byte) ENetMessageType.BulkPlayerStateUpdate);
+                    bw.Write((byte) 0);
+                    bw.Write((ushort) 0x24);
+                    bw.Write(ServerNameUID);
+                    bw.Write(1);
+                    bw.Write(837026840); // NameUID
+                    bw.Write(2059179); // PcId
+                    bw.Write(100);  // KartId
+                    bw.Write(1205); // CharacterId
+                    bw.Write(0); // Away
+                    bw.Write(0); // Mic
+                    client.SendReliableGameData(bw);
+                    
+                }
+                
+
+            }
+            
+            ((RUDPClient)client).SendPendingGamedataAcks();
         }
     }
 }

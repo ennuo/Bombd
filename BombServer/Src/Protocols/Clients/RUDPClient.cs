@@ -17,6 +17,9 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
     {
         const int MAX_PAYLOAD_SIZE = 1024;
         const int TIMEOUT_MS = 30000;
+        const int PACKET_TIMEOUT_MS = 5000;
+        const int RESEND_TIME_MS = 300;
+        private const int KEEP_ALIVE_INTERVAL_MS = 3000;
 
         public bool IsConnected => !_shouldClose;
         public bool HasDirectConnection { get; set; }
@@ -32,6 +35,9 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         
         private readonly Dictionary<ushort, byte[]> _dataFragments = new Dictionary<ushort, byte[]>();
         private readonly Queue<byte[]> _packetQueue = new Queue<byte[]>();
+
+        private readonly List<AckPacketRecord> _waitingForAckList = new List<AckPacketRecord>();
+        private readonly List<int> _gameDataReceivedPacketList = new List<int>();
         
         private bool _shouldClose;
         private bool _wasClosedByClient;
@@ -62,6 +68,20 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             // Temporarily disabling the keep alive interval here,
             // going to stick with the game's keep alive req/res's for now
         }
+
+        private void SendReliableData(byte[] data, EBombPacketType protocol, int sequence)
+        {
+            var ack = new AckPacketRecord()
+            {
+                Datagram = data,
+                Protocol = protocol,
+                SequenceNumber = sequence,
+                ResendTime = DateTime.Now.AddMilliseconds(RESEND_TIME_MS)
+            };
+            
+            _waitingForAckList.Add(ack);
+            Client.Send(ack.Datagram, ack.Datagram.Length, RemoteEndPoint);
+        }
         
         public void SendNetcodeData(BombXml xml)
         {
@@ -77,11 +97,12 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
                 {
                     uint checksum = 0;
+                    var sequence = _seqNumber++;
                     
                     bw.Write((byte) EBombPacketType.ReliableNetcodeData);
                     bw.Write(offset + payloadSize >= data.Length);
                     bw.Write(groupId);
-                    bw.Write(_seqNumber++);
+                    bw.Write(sequence);
                     bw.Write(checksum);
                     bw.Write(new byte[4]);
                     bw.Write(data, offset, payloadSize);
@@ -94,15 +115,14 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                     packet[10] = (byte)((checksum >> 8) & 0xff);
                     packet[11] = (byte)(checksum & 0xff);
 
-                    Client.Send(packet, packetSize, RemoteEndPoint);
+                    SendReliableData(packet, EBombPacketType.ReliableNetcodeData, sequence);
                 }
 
                 offset += payloadSize;
                 
             } while (offset < data.Length);
         }
-
-        // TODO: Ensure reliability
+        
         public void SendReliableGameData(EndiannessAwareBinaryWriter bw)
         {
             // TODO: Split up packets, not implementing this right now since I just
@@ -138,8 +158,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             var checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
             packet[12] = (byte)((checksum >> 8) & 0xff);
             packet[13] = (byte)(checksum & 0xff);
-
-            Client.Send(packet, packet.Length, RemoteEndPoint);
+            
+            SendReliableData(packet, EBombPacketType.ReliableGameData, sequenceNumber);
         }
 
         public void SendUnreliableGameData(EndiannessAwareBinaryWriter bw)
@@ -171,17 +191,18 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             using (var ms = new MemoryStream(keepAlivePacketSize))
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
             {
+                var sequence = _seqNumber++;
                 bw.Write((byte) EBombPacketType.KeepAlive);
                 bw.Write(new byte[3]);
-                bw.Write(_seqNumber++);
+                bw.Write(sequence);
 
                 var localTime = (uint)(DateTime.UtcNow.Ticks / 10000);
                 bw.Write(localTime);
                 bw.Write(new byte[4]);
                 
                 bw.Flush();
-
-                Client.Send(ms.ToArray(), keepAlivePacketSize, RemoteEndPoint);
+                
+                SendReliableData(ms.ToArray(), EBombPacketType.KeepAlive, sequence);
             }
         }
 
@@ -191,17 +212,18 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
             using (var ms = new MemoryStream(resetPacketSize))
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
             {
+                var sequence = _seqNumber++;
                 bw.Write((byte) EBombPacketType.Reset);
                 bw.Write(new byte[3]);
-                bw.Write(_seqNumber++);
+                bw.Write(sequence);
                 
                 bw.Write(new byte[4]);
                 bw.Write(_secret);
                 bw.Write(new byte[4]);
                 
                 bw.Flush();
-
-                Client.Send(ms.ToArray(), resetPacketSize, RemoteEndPoint);
+                
+                SendReliableData(ms.ToArray(), EBombPacketType.Reset, sequence);
             }
         }
         
@@ -252,8 +274,8 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 checksum = BombHMAC.GetMD516(packet, GameManager.HashSalt);
                 packet[2] = (byte)(checksum >> 8);
                 packet[3] = (byte)(checksum & 0xff);
-
-                Client.Send(packet, handshakePacketSize, RemoteEndPoint);
+                
+                SendReliableData(packet, EBombPacketType.Handshake, _seqNumber);
             }
         }
 
@@ -267,7 +289,26 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         
         public void UpdateOutgoingData()
         {
-            // TODO: Keep track of lost packets and re-send if necessary here
+            foreach (var ack in _waitingForAckList)
+            {
+                var now = DateTime.Now;
+                if (now < ack.ResendTime) continue;
+                
+                Logging.Log(typeof(RUDPClient), "UpdateOutGoingData: Resending packet", LogType.Info);
+                
+                Client.Send(ack.Datagram, ack.Datagram.Length, RemoteEndPoint);
+                ack.ResendTime = DateTime.Now.AddMilliseconds(RESEND_TIME_MS);
+            }
+        }
+
+        public void SendPendingGamedataAcks()
+        {
+            foreach (var ack in _gameDataReceivedPacketList)
+            {
+                SendAck(EBombPacketType.ReliableGameData, ack);
+            }
+            
+            _gameDataReceivedPacketList.Clear();
         }
         
         public byte[] GetData(out EBombPacketType type)
@@ -285,7 +326,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 
                 // If the packet is reliable, send back an acknowledgement
                 if (type != EBombPacketType.Reset && type != EBombPacketType.Acknowledge &&
-                    type != EBombPacketType.UnreliableGameData)
+                    type != EBombPacketType.UnreliableGameData && type != EBombPacketType.ReliableGameData)
                 {
                     br.BaseStream.Position += 3;
                     var sequence = br.ReadInt32();
@@ -301,11 +342,20 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                 switch (type)
                 {
                     case EBombPacketType.Acknowledge:
-                        // TODO: Cache packets in memory until acknowledge is received for sequence number to make protocol "reliable"
-                        Logging.Log(typeof(RUDPClient), "ReadSocket::Acknowledge: Unimplemented!", LogType.Error);
-                        break;
-                    case EBombPacketType.KeepAlive: 
-                        // TODO: Extend a KeepAlive timer
+                    {
+                        var protocol = (EBombPacketType)br.ReadByte();
+                        br.BaseStream.Position += 2;
+                        var sequence = br.ReadInt32();
+
+                        var index = _waitingForAckList.FindIndex(x => x.Protocol == protocol && x.SequenceNumber == sequence);
+                        if (index >= 0)
+                        {
+                            _waitingForAckList.RemoveAt(index);
+                        }
+                        
+                        break;   
+                    }
+                    case EBombPacketType.KeepAlive:
                         break;
                     case EBombPacketType.ReliableNetcodeData:
                     {
@@ -345,9 +395,46 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                         _dataFragments[groupId] = data;
                         break;   
                     }
+                    // TODO: Make less repetitive, most of the code is the same as in reliable netcode data,
+                    // just throw it in a function or something?
                     case EBombPacketType.ReliableGameData:
-                        Logging.Log(typeof(RUDPClient), "ReadSocket::ReliableGameData: Unimplemented!", LogType.Error);
-                        break;
+                    {
+                        var source = br.ReadByte();
+                        var destination = br.ReadByte();
+                        var groupCompleteFlag = br.ReadByte();
+                        var sequenceNumber = br.ReadInt32();
+                        var groupId = br.ReadUInt16();
+                        var groupSize = br.ReadUInt16();
+                        var checksum = br.ReadUInt16();
+                        var payloadSize = br.ReadUInt16();
+                        
+                        _gameDataReceivedPacketList.Add(sequenceNumber);
+                        
+                        var isLastFragment = (groupCompleteFlag & 1) != 0;
+                        var data = br.ReadBytes(payloadSize);
+                        
+                        // TODO: We actually know how big the data is going to be with
+                        // gamedata, change how this is handled to include the offset?
+                        if (_dataFragments.TryGetValue(groupId, out var group))
+                        {
+                            var concat = new byte[data.Length + group.Length];
+                            Buffer.BlockCopy(group, 0, concat, 0, group.Length);
+                            Buffer.BlockCopy(data, 0, concat, group.Length, data.Length);
+
+                            if (isLastFragment)
+                            {
+                                _dataFragments.Remove(groupId);
+                                return concat;
+                            }
+
+                            _dataFragments[groupId] = concat;
+                            break;
+                        }
+
+                        if (isLastFragment) return data;
+                        _dataFragments[groupId] = data;
+                        break;   
+                    }
                     case EBombPacketType.UnreliableGameData:
                         Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
                         break;

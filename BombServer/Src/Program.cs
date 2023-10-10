@@ -19,7 +19,7 @@ namespace BombServerEmu_MNR.Src
 
         public static string ClusterUuid { get; } = UUID.GenerateUUID();
 
-        public static bool DisableTLS = false;
+        public static bool DisableTLS = true;
 
         private static string ip = "127.0.0.1";
 
