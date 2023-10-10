@@ -93,6 +93,8 @@ namespace BombServerEmu_MNR.Src.Services
                 GuestCount = 0
             });
             
+            game.Attributes.Add("COMM_CHECKSUM", "186793");
+            
             Thread.Sleep(2000);
             xml.SetMethod("joinGameCompleted");
             xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
