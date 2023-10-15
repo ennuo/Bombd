@@ -182,7 +182,7 @@ namespace BombServerEmu_MNR.Src.Services
             else if (br.BaseStream.Length != 0)
             {
                 var type = (ENetMessageType)br.ReadByte();
-                
+
                 if (type == ENetMessageType.PlayerStateUpdate)
                 {
                     // Send back a dummy bulk player state update
@@ -190,15 +190,8 @@ namespace BombServerEmu_MNR.Src.Services
                     bw.Write((byte) 0);
                     bw.Write((ushort) 0x24);
                     bw.Write(ServerNameUID);
-                    bw.Write(1);
-                    bw.Write(837026840); // NameUID
-                    bw.Write(2059179); // PcId
-                    bw.Write(100);  // KartId
-                    bw.Write(1205); // CharacterId
-                    bw.Write(0); // Away
-                    bw.Write(0); // Mic
+                    bw.Write(0);
                     client.SendReliableGameData(bw);
-                    
                 }
                 
 

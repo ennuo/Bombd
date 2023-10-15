@@ -324,8 +324,13 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
         
         public byte[] GetData(out EBombPacketType type)
         {
-            if (!Block())
+            if (_packetQueue.Count == 0)
             {
+                if ((DateTime.Now - _lastPacketReceiveTime).TotalMilliseconds > TIMEOUT_MS)
+                {
+                    _shouldClose = true;
+                }
+                
                 type = EBombPacketType.Invalid;
                 return null;
             }
@@ -447,7 +452,7 @@ namespace BombServerEmu_MNR.Src.Protocols.Clients
                         break;   
                     }
                     case EBombPacketType.UnreliableGameData:
-                        Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
+                        // Logging.Log(typeof(RUDPClient), "ReadSocket::UnreliableGameData: Unimplemented!", LogType.Error);
                         break;
                     case EBombPacketType.VoipData: //Never used
                         break;
