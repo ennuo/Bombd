@@ -43,12 +43,13 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("kickPlayer", null);
             //LBPK requests those from game manager, but not sure about MNR
             Service.RegisterMethod("hostGame", null); //called when your friend is connecting to your pod
-            Service.RegisterMethod("listGamesMatchmaking", null); //seems to have the same response as listGames, but i'll leave it as null for now
+            Service.RegisterMethod("listGamesMatchmaking", ListGamesMatchmakingHandler); //seems to have the same response as listGames, but i'll leave it as null for now
             Service.RegisterMethod("beginMatchmaking", null);
             Service.RegisterMethod("cancelMatchmaking", null);
             Service.RegisterMethod("requestPlayerCount", null); //requested for each planet that has levels that need matchmaking, the request contains a binary that has a list of level ids on that planet
             Service.RegisterMethod("RequestGlobalPlayerCount", null); //not sure, got called randomly while i was in the pod menu, probably returns an integer to display how many player are currently in the game
             Service.RegisterMethod("requestBusiestCount", null); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
+            Service.RegisterMethod("reserveSlotsInGameForGroup", ReserveSlotsInGameForGroupHandler);
 
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
         }
@@ -98,6 +99,26 @@ namespace BombServerEmu_MNR.Src.Services
             client.SendNetcodeData(xml);
         }
 
+        void ListGamesMatchmakingHandler(BombService service, IClient client, BombXml xml)
+        {
+            //var attributes = new GameBrowserAttributes(Convert.FromBase64String(xml.GetParam("attributes")));
+            //Logging.Log(typeof(GameBrowser), "{0}", LogType.Debug, attributes);
+            
+            xml.SetMethod("listGamesMatchmaking");
+            GameBrowser.FillDummyGameData(service, client, xml);
+            client.SendNetcodeData(xml);
+        }
+
+        void ReserveSlotsInGameForGroupHandler(BombService service, IClient client, BombXml xml)
+        {
+            //var attributes = new GameBrowserAttributes(Convert.FromBase64String(xml.GetParam("attributes")));
+            //Logging.Log(typeof(GameBrowser), "{0}", LogType.Debug, attributes);
+            
+            xml.SetMethod("reserveSlotsInGameForGroup");
+            xml.AddParam("reservationKey", "1");
+            client.SendNetcodeData(xml);
+        }
+
         void DirectConnectHandler(IClient client, EndiannessAwareBinaryReader br, EndiannessAwareBinaryWriter bw)
         {
             bw.Write(new byte[0xFF]);
@@ -105,16 +126,16 @@ namespace BombServerEmu_MNR.Src.Services
         }
 
         void CreateGameHandler(BombService service, IClient client, BombXml xml)
-            {
-                //gamename,internalIP,externalIP,listenPort
-                //xml.SetMethod("createGame");
-                //client.SendNetcodeData(xml);
-            }
-
-            void LeaveCurrentGameHandler(BombService service, IClient client, BombXml xml)
-            {
-                xml.SetMethod("leaveCurrentGame");
-                client.SendNetcodeData(xml);
-            }
+        {
+            //gamename,internalIP,externalIP,listenPort
+            //xml.SetMethod("createGame");
+            //client.SendNetcodeData(xml);
         }
+
+        void LeaveCurrentGameHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("leaveCurrentGame");
+            client.SendNetcodeData(xml);
+        }
+    }
 }

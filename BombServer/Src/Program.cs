@@ -21,6 +21,8 @@ namespace BombServerEmu_MNR.Src
 
         public static bool DisableTLS = false;
 
+        public static string ApiURL = "http://127.0.0.1:10050/";
+
         private static string ip = "127.0.0.1";
 
         static void Main(string[] args)
@@ -30,6 +32,8 @@ namespace BombServerEmu_MNR.Src
                 "This program comes with ABSOLUTELY NO WARRANTY! This is free software, and you are welcome to redistribute it under certain conditions\n", LogType.Info);
             CheckArgs(args);
             
+            WebApiIntegration.InitContentUpdates();
+
             Services.Add(new Directory(ip, 10501).Service);
             Services.Add(new Matchmaking(ip, 10510).Service);  //Made up port
             Services.Add(new GameManager(ip, 10505).Service); // Is this supposed to be 10412 actually?
@@ -61,6 +65,10 @@ namespace BombServerEmu_MNR.Src
                     case "-notls":
                         DisableTLS = true;
                         Logging.RealLog(typeof(Program), "TLS has been disabled", LogType.Info);
+                        break;
+
+                    case "-url":
+                        ApiURL = args[i + 1];
                         break;
                 }
             }

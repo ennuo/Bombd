@@ -27,7 +27,7 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("listFakeGames", null);
         }
 
-        void FillDummyGameData(BombService service, IClient client, BombXml xml)
+        public static void FillDummyGameData(BombService service, IClient client, BombXml xml)
         {
             var timeOfDeath = Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds);
             var gamemanager = Program.Services.FirstOrDefault(match => match.Name == "gamemanager");
