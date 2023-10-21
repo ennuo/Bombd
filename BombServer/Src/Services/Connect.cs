@@ -36,6 +36,7 @@ namespace BombServerEmu_MNR.Src.Services
                 xml.AddParam("bombd_ServerIP", service.IP);
                 xml.AddParam("bombd_ServerPort", service.Port);
                 xml.AddParam("serveruuid", service.Uuid);
+                xml.AddParam("clusteruuid", Program.ClusterUuid);
                 xml.AddParam("username", ticket.OnlineId);
                 xml.AddParam("userid", ticket.UserId);
                 // In the packet logs, this is the service that gets a config (a fairly large one that is, likely >1024 bytes)
