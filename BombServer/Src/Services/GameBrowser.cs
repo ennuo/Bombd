@@ -27,9 +27,9 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("listFakeGames", null);
         }
 
-        public static void FillDummyGameData(BombService service, IClient client, BombXml xml)
+        public static void FillDummyGameData(BombService service, IClient client, BombXml xml, bool Modspot = true)
         {
-            var timeOfDeath = Math.Floor((DateTime.UtcNow.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds);
+            var timeOfDeath = (int)(DateTime.UtcNow.AddHours(1).Ticks / TimeSpan.TicksPerMillisecond);
             var gamemanager = Program.Services.FirstOrDefault(match => match.Name == "gamemanager");
             
  
@@ -55,7 +55,8 @@ namespace BombServerEmu_MNR.Src.Services
             game.Attributes.Add("__MM_MODE_G", "OPEN");
             game.Attributes.Add("__MAX_PLAYERS", "8");
             
-            gameList.Add(game);
+            if (Modspot)
+                gameList.Add(game);
 
             xml.AddParam("serverGameListHeader", Convert.ToBase64String(gameList.SerializeHeader()));
             xml.AddParam("serverGameList", Convert.ToBase64String(gameList.SerializeList()));

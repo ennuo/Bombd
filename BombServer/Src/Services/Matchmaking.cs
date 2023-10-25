@@ -20,8 +20,33 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("startConnect", Connect.StartConnectHandler);
             Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandler);
 
-            Service.RegisterMethod("beginMatchmaking", null);
-            Service.RegisterMethod("cancelMatchmaking", null);
+            Service.RegisterMethod("beginMatchmaking", BeginMatchmakingHandler);
+            Service.RegisterMethod("cancelMatchmaking", CancelMatchmakingHandler);
+        }
+
+        void BeginMatchmakingHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("beginMatchmaking");
+            client.SendNetcodeData(xml);
+            xml.SetMethod("beginMatchmaking");
+            xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            client.SendNetcodeData(xml);
+            xml.SetMethod("matchmakingBegin");
+            xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            xml.AddParam("matchmakingBeginTime", (int)(DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond));
+            client.SendNetcodeData(xml);
+        }
+
+        void CancelMatchmakingHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("cancelMatchmaking");
+            client.SendNetcodeData(xml);
+            xml.SetMethod("cancelMatchmaking");
+            xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            client.SendNetcodeData(xml);
+            xml.SetMethod("matchmakingCancel");
+            xml.SetTransactionType(BombXml.TRANSACTION_TYPE_REQUEST);
+            client.SendNetcodeData(xml);
         }
     }
 }

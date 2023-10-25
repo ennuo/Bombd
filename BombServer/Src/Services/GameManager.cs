@@ -44,9 +44,7 @@ namespace BombServerEmu_MNR.Src.Services
             //LBPK requests those from game manager, but not sure about MNR
             Service.RegisterMethod("hostGame", null); //called when your friend is connecting to your pod
             Service.RegisterMethod("listGamesMatchmaking", ListGamesMatchmakingHandler); //seems to have the same response as listGames, but i'll leave it as null for now
-            Service.RegisterMethod("beginMatchmaking", null);
-            Service.RegisterMethod("cancelMatchmaking", null);
-            Service.RegisterMethod("requestPlayerCount", null); //requested for each planet that has levels that need matchmaking, the request contains a binary that has a list of level ids on that planet
+            Service.RegisterMethod("requestPlayerCount", RequestPlayerCountHandler); //requested for each planet that has levels that need matchmaking, the request contains a binary that has a list of level ids on that planet
             Service.RegisterMethod("RequestGlobalPlayerCount", null); //not sure, got called randomly while i was in the pod menu, probably returns an integer to display how many player are currently in the game
             Service.RegisterMethod("requestBusiestCount", null); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
             Service.RegisterMethod("reserveSlotsInGameForGroup", ReserveSlotsInGameForGroupHandler);
@@ -105,7 +103,7 @@ namespace BombServerEmu_MNR.Src.Services
             //Logging.Log(typeof(GameBrowser), "{0}", LogType.Debug, attributes);
             
             xml.SetMethod("listGamesMatchmaking");
-            GameBrowser.FillDummyGameData(service, client, xml);
+            GameBrowser.FillDummyGameData(service, client, xml, false);
             client.SendNetcodeData(xml);
         }
 
@@ -116,6 +114,13 @@ namespace BombServerEmu_MNR.Src.Services
             
             xml.SetMethod("reserveSlotsInGameForGroup");
             xml.AddParam("reservationKey", "1");
+            client.SendNetcodeData(xml);
+        }
+
+        void RequestPlayerCountHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("requestPlayerCount");
+            xml.SetError("not implemented");
             client.SendNetcodeData(xml);
         }
 

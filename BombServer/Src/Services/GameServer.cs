@@ -69,17 +69,7 @@ namespace BombServerEmu_MNR.Src.Services
                         Type =  CircleOfInfluence.Type.Single,
                         Name = "Hotseat",
                         Index = 2,
-                        Events =
-                        {
-                            new CircleOfInfluence.Event
-                            {
-                                Name = "playin' king like it's poker",
-                                Id = 71025,
-                                Laps = 3,
-                                Description = "What even goes here?"
-                            }
-                        }
-                        
+                        Events = WebApiIntegration.GetContentUpdate("HOT_SEAT_PLAYLIST")
                     },
                     new CircleOfInfluence.Theme
                     {
@@ -105,6 +95,7 @@ namespace BombServerEmu_MNR.Src.Services
                         Type = CircleOfInfluence.Type.Series,
                         Name = "Special Event",
                         Index = 1,
+                        Events = WebApiIntegration.GetContentUpdate("THEMED_EVENTS")
                     }
                 };
 

@@ -24,7 +24,7 @@ namespace BombServerEmu_MNR.Src.DataTypes
             public string Name = string.Empty;
             public string Url = "http://www.modnation.com/";
             public int Index;
-            public readonly List<Event> Events = new List<Event>();
+            public List<Event> Events = new List<Event>();
         }
     }
 }
