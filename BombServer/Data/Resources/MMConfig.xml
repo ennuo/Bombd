@@ -8,3 +8,39 @@
 <AdvancedFilter name="__JOIN_MODE" weight="1.0">
 	<PossibleValue default="true">OPEN</PossibleValue>
 </AdvancedFilter>
+
+<AdvancedFilter name="DIFFICULTY_SETTING" weight="1.0">
+    <PossibleValue>normal</PossibleValue>
+    <PossibleValue>casual</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="MODE_TYPE" weight="1.0">
+	<PossibleValue>any</PossibleValue>
+    <PossibleValue>action</PossibleValue>
+    <PossibleValue>pure</PossibleValue>
+    <PossibleValue>battle</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="SERIES_TYPE" weight="1.0">
+    <PossibleValue>single</PossibleValue>
+    <PossibleValue>series</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="SPEED_CLASS" weight="1.0">
+    <PossibleValue>fast</PossibleValue>
+    <PossibleValue>faster</PossibleValue>
+    <PossibleValue>fastest</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="TRACK_GROUP" weight="1.0">
+	<PossibleValue>any</PossibleValue>
+    <PossibleValue>official</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="TRACK_CREATIONID" weight="1.0" absolute="true">
+    <PossibleValue>612</PossibleValue>
+</AdvancedFilter>
+
+<AdvancedFilter name="__MM_MODE_G" weight="1.0">
+    <PossibleValue default="true">OPEN</PossibleValue>
+</AdvancedFilter>

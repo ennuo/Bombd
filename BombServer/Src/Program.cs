@@ -25,6 +25,9 @@ namespace BombServerEmu_MNR.Src
 
         private static string ip = "127.0.0.1";
 
+        public static List<GameManagerGame> GamesMatchmaking = new List<GameManagerGame>(); 
+        public static int GameIdIncrement = 0;
+
         static void Main(string[] args)
         {
             Logging.OpenLogFile();

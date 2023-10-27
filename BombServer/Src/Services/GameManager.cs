@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using BombServerEmu_MNR.Src.Log;
 using BombServerEmu_MNR.Src.Protocols.Clients;
 using BombServerEmu_MNR.Src.DataTypes;
 using BombServerEmu_MNR.Src.Helpers.Extensions;
@@ -17,7 +18,6 @@ namespace BombServerEmu_MNR.Src.Services
 
         public BombService Service { get; }
         public static uint HashSalt = 1396788308;
-        
 
         public GameManager(string ip, ushort port)
         {
@@ -26,7 +26,7 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("startConnect", Connect.StartConnectHandler);
             Service.RegisterMethod("timeSyncRequest", Connect.TimeSyncRequestHandler);
 
-            Service.RegisterMethod("logClientMessage", null);
+            Service.RegisterMethod("logClientMessage", LogClientMessageHandler);
             Service.RegisterMethod("registerSessionKeyWithTargetBombd", null);
             Service.RegisterMethod("createGame", null);
             Service.RegisterMethod("joinGame", JoinGame);
@@ -67,12 +67,16 @@ namespace BombServerEmu_MNR.Src.Services
             // TODO: Keep track of actual games and send back
             // proper username/id/etc
 
-            var game = new GameManagerGame()
+            var game = Program.GamesMatchmaking.FirstOrDefault(match => match.GameName == xml.GetParam("gamename"));
+            if (game == null)
             {
-                GameName = gameName,
-                GameBrowserName = gameName,
-                GameId = 1
-            };
+                game = new GameManagerGame()
+                {
+                    GameName = gameName,
+                    GameBrowserName = gameName,
+                    GameId = 1
+                };
+            }
             
             game.Players.Add(new GameManagerPlayer
             {
@@ -82,7 +86,8 @@ namespace BombServerEmu_MNR.Src.Services
                 GuestCount = 0
             });
             
-            game.Attributes.Add("COMM_CHECKSUM", "186793");
+            if (!game.Attributes.ContainsKey("COMM_CHECKSUM"))
+                game.Attributes.Add("COMM_CHECKSUM", "186793");
             
             Thread.Sleep(2000);
             xml.SetMethod("joinGameCompleted");
@@ -99,11 +104,88 @@ namespace BombServerEmu_MNR.Src.Services
 
         void ListGamesMatchmakingHandler(BombService service, IClient client, BombXml xml)
         {
-            //var attributes = new GameBrowserAttributes(Convert.FromBase64String(xml.GetParam("attributes")));
+            var searchData = new GameBrowserSearchData(Convert.FromBase64String(xml.GetParam("searchData")));
             //Logging.Log(typeof(GameBrowser), "{0}", LogType.Debug, attributes);
             
             xml.SetMethod("listGamesMatchmaking");
-            GameBrowser.FillDummyGameData(service, client, xml, false);
+
+            var timeOfDeath = (int)(DateTime.UtcNow.AddHours(1).Ticks / TimeSpan.TicksPerMillisecond);
+            xml.AddParam("gameListTimeOfDeath", timeOfDeath);
+
+            var gameList = new ServerGameList
+            {
+                TimeOfDeath = (int) timeOfDeath,
+                ClusterUuid = Program.ClusterUuid,
+                GameManagerIP = service.IP,
+                GameManagerPort = service.Port.ToString(),
+                GameManagerUUID = service.Uuid
+            };
+
+            if (searchData.PreferredCreationIdList.Count == 0)
+            {
+                foreach(var Game in Program.GamesMatchmaking)
+                {
+                    var game = new GameBrowserGame
+                    {
+                        GameName = Game.GameName,
+                        DisplayName = Game.GameBrowserName
+                    };
+
+                    foreach(var player in Game.Players)
+                    {
+                        game.Players.Add(new GameBrowserPlayer
+                        {
+                            PlayerName = player.UserName
+                        });
+                    }
+
+                    game.Attributes = Game.Attributes;
+                    gameList.Add(game);
+                }
+            }
+            else 
+            {
+                foreach(var id in searchData.PreferredCreationIdList)
+                {
+                    foreach(var Game in Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID") && match.Attributes["TRACK_CREATIONID"] == id.ToString()))
+                    {
+                        var game = new GameBrowserGame
+                        {
+                            GameName = Game.GameName,
+                            DisplayName = Game.GameBrowserName
+                        };
+
+                        foreach(var player in Game.Players)
+                        {
+                            game.Players.Add(new GameBrowserPlayer
+                            {
+                                PlayerName = player.UserName
+                            });
+                        }
+
+                        game.Attributes = Game.Attributes;
+                        gameList.Add(game);
+                    }
+                }
+            }
+            Logging.Log(typeof(GameBrowser), $"searchData.PreferredCreationIdList.Count = {searchData.PreferredCreationIdList.Count}", LogType.Info);
+
+            Logging.Log(typeof(GameBrowser), $"gameCount = {gameList.Count}", LogType.Info);
+
+            Logging.Log(typeof(GameBrowser), "Filtering attributes", LogType.Info);
+            foreach (var Attribute in searchData.Attributes) 
+            {
+                Logging.Log(typeof(GameBrowser), $"key: {Attribute.Key}\nvalue: {Attribute.Value}", LogType.Info);
+                gameList.RemoveAll(match => !match.Attributes.ContainsKey(Attribute.Key) || match.Attributes[Attribute.Key] != Attribute.Value);
+            }
+
+            Logging.Log(typeof(GameBrowser), $"gameCount = {gameList.Count}", LogType.Info);
+
+            Logging.Log(typeof(GameBrowser), $"MatchmakingGameCount = {Program.GamesMatchmaking.Count}", LogType.Info);
+
+            xml.AddParam("serverGameListHeader", Convert.ToBase64String(gameList.SerializeHeader()));
+            xml.AddParam("serverGameList", Convert.ToBase64String(gameList.SerializeList(true)));
+
             client.SendNetcodeData(xml);
         }
 
@@ -119,8 +201,26 @@ namespace BombServerEmu_MNR.Src.Services
 
         void RequestPlayerCountHandler(BombService service, IClient client, BombXml xml)
         {
+            var playerCounters = new GameBrowserPlayerCounters(Convert.FromBase64String(xml.GetParam("requestParams")));
+            List<int> keys = new List<int>(playerCounters.Keys);
+            foreach (var key in keys) 
+            {
+                playerCounters[key] = Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID") 
+                    && match.Attributes["TRACK_CREATIONID"] == key.ToString()).Sum(game => game.Players.Count);
+                Logging.Log(typeof(GameBrowser), $"gameCount = " + Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID") 
+                    && match.Attributes["TRACK_CREATIONID"] == key.ToString()).Count(), LogType.Info);
+                Logging.Log(typeof(GameBrowser), $"playerCount = " + Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID") 
+                    && match.Attributes["TRACK_CREATIONID"] == key.ToString()).Sum(game => game.Players.Count), LogType.Info);
+            }
+            xml.SetName("gamebrowser");
             xml.SetMethod("requestPlayerCount");
-            xml.SetError("not implemented");
+            xml.AddParam("requestParams", Convert.ToBase64String(playerCounters.ToArray()));
+            client.SendNetcodeData(xml);
+        }
+
+        void LogClientMessageHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("logClientMessage");
             client.SendNetcodeData(xml);
         }
 
@@ -139,6 +239,19 @@ namespace BombServerEmu_MNR.Src.Services
 
         void LeaveCurrentGameHandler(BombService service, IClient client, BombXml xml)
         {
+            Logging.Log(typeof(GameBrowser), $"MatchmakingGameCount = {Program.GamesMatchmaking.Count}", LogType.Info);
+            var game = Program.GamesMatchmaking.FirstOrDefault(match => match.GameName == xml.GetParam("gamename"));
+            
+            if (game != null)
+            {
+                game.Players.RemoveAll(match => match.UserName == client.Username);
+
+                if (game.Players.Count == 0)
+                    Program.GamesMatchmaking.Remove(game);
+            }
+
+            Logging.Log(typeof(GameBrowser), $"MatchmakingGameCount = {Program.GamesMatchmaking.Count}", LogType.Info);
+
             xml.SetMethod("leaveCurrentGame");
             client.SendNetcodeData(xml);
         }

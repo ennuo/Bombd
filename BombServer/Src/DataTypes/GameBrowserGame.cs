@@ -18,7 +18,7 @@ namespace BombServerEmu_MNR.Src.DataTypes
         public string DisplayName { get; set; }
         public Dictionary<string, string> Attributes { get; set; } = new Dictionary<string, string>();
 
-        public byte[] ToArray()
+        public byte[] ToArray(bool karting = false)
         {
             using (var ms = new MemoryStream())
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
@@ -40,6 +40,10 @@ namespace BombServerEmu_MNR.Src.DataTypes
                     bw.WriteStringMember(attribute.Key);
                     bw.WriteStringMember(attribute.Value);
                 }
+
+                //NumFreeSlots
+                if (karting)
+                    bw.Write(64);
 
                 bw.Flush();
                 return ms.ToArray();

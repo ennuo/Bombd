@@ -38,13 +38,13 @@ namespace BombServerEmu_MNR.Src.DataTypes
             }
         }
 
-        public byte[] SerializeList()
+        public byte[] SerializeList(bool karting = false)
         {
             using (var ms = new MemoryStream())
             using (var bw = new EndiannessAwareBinaryWriter(ms, EEndianness.Big))
             {
                 foreach (var game in this)
-                    bw.Write(game.ToArray());
+                    bw.Write(game.ToArray(karting));
                 bw.Flush();
                 return ms.ToArray();
             }
