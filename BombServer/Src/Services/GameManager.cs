@@ -45,8 +45,8 @@ namespace BombServerEmu_MNR.Src.Services
             Service.RegisterMethod("hostGame", null); //called when your friend is connecting to your pod
             Service.RegisterMethod("listGamesMatchmaking", ListGamesMatchmakingHandler); //seems to have the same response as listGames, but i'll leave it as null for now
             Service.RegisterMethod("requestPlayerCount", RequestPlayerCountHandler); //requested for each planet that has levels that need matchmaking, the request contains a binary that has a list of level ids on that planet
-            Service.RegisterMethod("RequestGlobalPlayerCount", null); //not sure, got called randomly while i was in the pod menu, probably returns an integer to display how many player are currently in the game
-            Service.RegisterMethod("requestBusiestCount", null); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
+            Service.RegisterMethod("RequestGlobalPlayerCount", RequestGlobalPlayerCountHandler); //not sure, got called randomly while i was in the pod menu, probably returns an integer to display how many player are currently in the game
+            Service.RegisterMethod("requestBusiestCount", RequestBusiestCountHandler); //LBPK requests it when you are trying to search for busiest levels in the community tab, from what i understand it should return a list of level ids that the game will use as a filter
             Service.RegisterMethod("reserveSlotsInGameForGroup", ReserveSlotsInGameForGroupHandler);
 
             Service.RegisterDirectConnect(DirectConnectHandler, EEndianness.Big);
@@ -215,6 +215,43 @@ namespace BombServerEmu_MNR.Src.Services
             xml.SetName("gamebrowser");
             xml.SetMethod("requestPlayerCount");
             xml.AddParam("requestParams", Convert.ToBase64String(playerCounters.ToArray()));
+            client.SendNetcodeData(xml);
+        }
+
+        void RequestGlobalPlayerCountHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("RequestGlobalPlayerCount");
+            xml.AddParam("GlobalPlayerCount", Program.GamesMatchmaking.Sum(game => game.Players.Count));
+            client.SendNetcodeData(xml);
+        }
+
+        void RequestBusiestCountHandler(BombService service, IClient client, BombXml xml)
+        {
+            xml.SetMethod("requestBusiestCount");
+            var BusiestGames = new GameBrowserBusiestGames();
+            var playerCounts = new Dictionary<int, int>();
+
+            foreach (var game in Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID"))) 
+            {
+                if(!playerCounts.ContainsKey(int.Parse(game.Attributes["TRACK_CREATIONID"])))
+                    playerCounts.Add(int.Parse(game.Attributes["TRACK_CREATIONID"]), 0);
+            }
+
+            foreach (var key in new List<int>(playerCounts.Keys)) 
+            {
+                playerCounts[key] = Program.GamesMatchmaking.Where(match => match.Attributes.ContainsKey("TRACK_CREATIONID") 
+                    && match.Attributes["TRACK_CREATIONID"] == key.ToString()).Sum(game => game.Players.Count);
+            }
+
+            var temp = playerCounts.ToList();
+
+            temp.Sort((curr,prev) => prev.Value.CompareTo(curr.Value));
+
+            playerCounts = temp.ToDictionary(x => x.Key, x => x.Value);
+
+            BusiestGames.AddRange(playerCounts.Keys.Take(100));
+
+            xml.AddParam("BusiestGames", Convert.ToBase64String(BusiestGames.SerializeList()));
             client.SendNetcodeData(xml);
         }
 

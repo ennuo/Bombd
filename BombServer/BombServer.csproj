@@ -62,6 +62,7 @@
     <Compile Include="Src\DataTypes\NPTicket.cs" />
     <Compile Include="Src\DataTypes\GameBrowserPlayerCounters.cs" />
     <Compile Include="Src\DataTypes\GameBrowserSearchData.cs" />
+    <Compile Include="Src\DataTypes\GameBrowserBusiestGames.cs" />
     <Compile Include="Src\Helpers\BombHMAC.cs" />
     <Compile Include="Src\Helpers\Extensions\BinaryExtensions.cs" />
     <Compile Include="Src\Helpers\Extensions\Endian.cs" />
