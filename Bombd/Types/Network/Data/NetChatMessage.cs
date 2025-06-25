@@ -1,14 +1,20 @@
-﻿using System.Text;
+﻿using System.IO;
+using System.Text;
+using System.Xml;
 using System.Xml.Serialization;
+using Bombd.Core;
 using Bombd.Helpers;
+using Bombd.Logging;
+using Bombd.Serialization;
 
 namespace Bombd.Types.Network;
 
 [XmlRoot("NetChatMessage")]
-public class NetChatMessage
+public class NetChatMessage : INetworkWritable
 {
     private static readonly XmlSerializer StateSerializer = new(typeof(NetChatMessage));
-    
+
+    [XmlIgnore] public Platform Platform;
     [XmlAttribute("senderName")] public string Sender;
     [XmlAttribute("recipientName")] public string Recipient;
     [XmlAttribute("body")] public string Body;
@@ -27,7 +33,7 @@ public class NetChatMessage
 
             if (data.Count != 4 + len)
                 throw new ArgumentException("NetChatMessage packet is malformed!");
-            
+
             xml = Encoding.ASCII.GetString(data.Array!, data.Offset + 4, len - 1);
         }
         else
@@ -35,11 +41,28 @@ public class NetChatMessage
             int len = 0;
             while (len < data.Count && data[len] != 0)
                 len++;
-            
+
             xml = len == 0 ? string.Empty : Encoding.ASCII.GetString(data.Array!, data.Offset, len);
         }
 
         using var reader = new StringReader(xml);
-        return (NetChatMessage) StateSerializer.Deserialize(reader)!;
+        NetChatMessage message = (NetChatMessage)StateSerializer.Deserialize(reader)!;
+        message.Platform = platform;
+        return message;
+    }
+
+    public void Write(NetworkWriter writer)
+    {
+        MemoryStream stream = new();
+        StateSerializer.Serialize(stream, this, new XmlSerializerNamespaces([XmlQualifiedName.Empty]));
+
+        if (Platform == Platform.Karting)
+        {
+            stream.WriteByte(1);
+            writer.Write((int)stream.Length+1);
+        }
+
+        stream.WriteByte(0);
+        writer.Write(stream.ToArray());
     }
 }

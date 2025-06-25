@@ -1,4 +1,3 @@
-using Bombd.Extensions;
 using Bombd.Globals;
 using Bombd.Helpers;
 using Bombd.Logging;
@@ -12,6 +11,7 @@ using Bombd.Types.Network.Objects;
 using Bombd.Types.Network.Races;
 using Bombd.Types.Network.Room;
 using Bombd.Types.Network.Simulation;
+using System.Text;
 
 namespace Bombd.Core;
 
@@ -34,6 +34,8 @@ public class SimServer
     public RaceState RaceState { get; private set; } = RaceState.Invalid;
     public bool HasRaceSettings => _raceSettings != null;
     public bool HasSeriesSetting => _seriesInfo != null;
+
+    public bool ForceStart;
 
     private readonly List<GamePlayer> _players = [];
     private readonly List<PlayerInfo> _playerInfos = [];
@@ -345,7 +347,7 @@ public class SimServer
         }
     }
     
-    private void Broadcast(INetworkWritable data, NetMessageType type, GamePlayer? sender = null)
+    public void Broadcast(INetworkWritable data, NetMessageType type, GamePlayer? sender = null)
     {
         using NetworkWriterPooled writer = NetworkWriterPool.Get();
         ArraySegment<byte> message = NetworkMessages.Pack(writer, data, type);
@@ -1244,9 +1246,10 @@ public class SimServer
             }
             case NetMessageType.TextChatMsg:
             {
+                NetChatMessage message;
                 try
                 {
-                    NetChatMessage message = NetChatMessage.LoadXml(data, Platform);
+                    message = NetChatMessage.LoadXml(data, Platform);
                     // Basic spoofing prevention, don't allow sender name mismatches
                     if (message.Sender != player.Username)
                     {
@@ -1261,8 +1264,23 @@ public class SimServer
                     player.Disconnect();
                     break;
                 }
-                
-                Broadcast(data, type, player);
+
+                if (string.IsNullOrEmpty(message.Body))
+                {//maybe reject empty messages?
+                    Broadcast(data, type, player);
+                    break;
+                }
+
+                string msgBody = Encoding.UTF8.GetString(Convert.FromBase64String(message.Body));
+                string prefix = BombdConfig.Instance.ChatCommandPrefix;
+
+                if (msgBody.StartsWith(prefix))
+                {
+                    string[] commandAndArgs = msgBody[prefix.Length..].Split(' ');
+                    ChatCommandManager.ProcessChatCommand(this, player, commandAndArgs[0], (commandAndArgs.Length > 1 ? commandAndArgs[1..] : []));
+                }
+                else
+                    Broadcast(data, type, player);
                 break;
             }
 
@@ -1585,6 +1603,8 @@ public class SimServer
         }
         else _eventResults.Sort((a, z) => a.EventScore.CompareTo(z.EventScore));
 
+        if (ForceStart)
+            ForceStart = false;
         
         int rank = 0;
         List<PlayerEventStats> stats = [];
@@ -1673,10 +1693,10 @@ public class SimServer
         {
             int numReadyPlayers =
                 _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0);
-            bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans;
+            bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans || ForceStart;
 
             // Karting, series races, and ranked races don't allow the "owner" to start the race
-            bool isAutoStart = IsKarting || IsRanked || _seriesInfo != null;
+            bool isAutoStart = IsKarting || IsRanked || _seriesInfo != null || ForceStart;
             
             if (hasMinPlayers && room.State <= RoomState.WaitingMinPlayers)
                 SetCurrentGameroomState(RoomState.Ready);
@@ -1895,6 +1915,15 @@ public class SimServer
                 break;
             }
         }
+    }
+
+    public void DisableAI()
+    {
+        if (_raceSettings == null) return;
+
+        _raceSettings.Value.AiEnabled = false;
+        _raceSettings.Value.NumHoard = 0;
+        TriggerRaceEventSync(EventUpdateReason.RaceSettingsChanged);
     }
 
     public void Tick()

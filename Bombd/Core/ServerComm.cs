@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using Bombd.Logging;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
@@ -9,6 +8,8 @@ using System.Threading.Channels;
 using Bombd.Types.Gateway;
 using Bombd.Types.Gateway.Events;
 using Directory = Bombd.Services.Directory;
+using Bombd.ChatCommands;
+using NetMessageType = Bombd.Types.Network.NetMessageType;
 
 namespace Bombd.Core;
 
@@ -88,7 +89,18 @@ public sealed class ServerComm : IDisposable
             KartId = kartId
         });
     }
-    
+
+    public void SendChatCommand(int userId, int playerId, string command, string[] args)
+    {
+        DispatchEvent(GatewayEvents.PlayerUpdated, new ChatCommandEvent
+        {
+            PlayerConnectId = playerId,
+            UserId = userId,
+            Command = command,
+            Arguments = args
+        });
+    }
+
     public async Task Run()
     {
         while (true)
@@ -226,6 +238,40 @@ public sealed class ServerComm : IDisposable
             {
                 if (ParseMessage(message, out PlayerSessionDestroyedEvent? evt))
                     BombdServer.Instance.SessionManager.Unregister(evt);
+                break;
+            }
+            case GatewayEvents.RegisterChatCommands:
+            {
+                //Suggestion: maybe allow other servers to register chat commands? can't think of a potential use case though...
+                if (ParseMessage(message, out RegisterChatCommandsEvent? evt) && message.From == MasterServer)
+                    foreach (var command in evt.Commands)
+                        ChatCommandManager.RegisterChatCommand(new ServerCommChatCommand(command));
+                break;
+            }
+            case GatewayEvents.ChatCommandResponse:
+            {
+                if (ParseMessage(message, out ChatCommandResponseEvent? evt))
+                {
+                    var room = BombdServer.Instance.RoomManager.GetRoomByUser(evt.UserId);
+
+                    if (room != null)
+                    {
+                        var player = room.GetUser(evt.UserId);
+
+                        var chatMessage = ChatCommandManager.GetChatMessage(player, evt.Message);
+                        if (!string.IsNullOrEmpty(evt.Sender))
+                            chatMessage.Sender = evt.Sender;
+
+                        if (evt.BroadcastInRoom)
+                        {
+                            chatMessage.Private = 0;
+                            chatMessage.Recipient = "";
+                            room.Simulation.Broadcast(chatMessage, NetMessageType.TextChatMsg);
+                        }
+                        else
+                            player.SendMessage(chatMessage, NetMessageType.TextChatMsg);
+                    }
+                }
                 break;
             }
         }

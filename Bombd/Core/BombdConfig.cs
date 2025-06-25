@@ -81,4 +81,14 @@ public class BombdConfig
     ///     The key used for server communication api.
     /// </summary>
     public string ServerCommunicationKey { get; set; } = string.Empty;
+
+    /// <summary>
+    ///     Prefix for chat commands.
+    /// </summary>
+    public string ChatCommandPrefix { get; set; } = "/"; //maybe think of a way to notify users if the command prefix is not default?
+
+    /// <summary>
+    ///     Whether or not debug commands should be registered.
+    /// </summary>
+    public bool EnableDebugCommands { get; set; } = false;
 }
