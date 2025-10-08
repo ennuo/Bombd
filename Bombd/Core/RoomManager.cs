@@ -253,10 +253,6 @@ public class RoomManager
                 // before advertising the session.
                 if (!room.Simulation.HasRaceSettings)
                     return false;
-                
-                // If the race is already in progress, don't advertise the session
-                if (room.Simulation.RaceState >= RaceState.LoadingIntoRace || !room.Simulation.CanJoinAsRacer())
-                    return false;
             }
             
             foreach (KeyValuePair<string, string> attribute in attributes)
