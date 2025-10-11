@@ -51,7 +51,7 @@ public class SimServer
     private float _pausedTimeRemaining;
     private string _destination = Destination.GameRoom;
     
-    private GenericSyncObject<CoiInfo> _coiInfo;
+    private GenericSyncObject<CoiInfo>? _coiInfo;
     private GenericSyncObject<VotePackage> _votePackage;
     private GenericSyncObject<GameroomState> _gameroomState;
     private GenericSyncObject<AiInfo> _aiInfo;
@@ -270,6 +270,15 @@ public class SimServer
                 }
             }
         }
+    }
+
+    public void OnHotSeatPlaylistRefresh(EventSettings playlist)
+    {
+        // Don't care about the hot seat refresh if we're not in a modspot.
+        if (_coiInfo == null) return;
+        
+        _coiInfo.Value.Hotseat.Event = playlist;
+        _coiInfo.Sync();
     }
 
     private void OnReleaseArbitratedItem(ItemNode item, ItemAcquirerNode acquirer)
@@ -1247,6 +1256,8 @@ public class SimServer
                 try
                 {
                     NetChatMessage message = NetChatMessage.LoadXml(data, Platform);
+                    
+                    
                     // Basic spoofing prevention, don't allow sender name mismatches
                     if (message.Sender != player.Username)
                     {
@@ -1366,6 +1377,17 @@ public class SimServer
             }
             case NetMessageType.MessageReliableBlock:
             {
+                // 0x320 voice data
+                // 0x60 byte meta block?
+                    // 0x0 - int data_size
+                    // 0x4 - int ???
+                    // 0x8 - int netcode_id
+                    // 0xc - int ???
+                    // 0x10 - int player_id (?)
+                    // 0x14 - sequence
+                    
+                // input is VOICE @ 16000Hz
+                    
                 BroadcastBlock(data, true, player);
                 break;
             }

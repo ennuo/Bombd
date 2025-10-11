@@ -1,4 +1,5 @@
-﻿using Bombd.Attributes;
+﻿using System.Buffers.Binary;
+using Bombd.Attributes;
 using Bombd.Core;
 using Bombd.Helpers;
 using Bombd.Logging;
@@ -190,6 +191,24 @@ public class GameManager : BombdService
             Attributes = attributes,
             PlayerIdList = players
         });
+    }
+
+    [Transaction("registerSessionKeyWithTargetBombd")]
+    public void RegisterSessionKeyWithTargetBombd(TransactionContext context)
+    {
+        // We don't actually support clustering or anything,
+        // but this is needed for invites to work, so at minimal,
+        // verify that the target server UUID matches our own.
+        if (context.Request["serverUUID"] != Uuid)
+        {
+            context.Response.Error = "noRemoteClusters";
+            return;
+        }
+        
+        // And then just send the same session key back so the game doesn't freak out.
+        Span<byte> span = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32BigEndian(span, context.Connection.SessionId);
+        context.Response["SessionKey"] = Convert.ToBase64String(span);
     }
 
     [Transaction("detachGuests")]

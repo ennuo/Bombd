@@ -1,4 +1,4 @@
-﻿using System.Buffers.Text;
+using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using Bombd.Logging;
@@ -256,6 +256,11 @@ public sealed class ServerComm : IDisposable
             {
                 if (ParseMessage(message, out PlayerSessionDestroyedEvent? evt))
                     BombdServer.Instance.SessionManager.Unregister(evt);
+                break;
+            }
+            case GatewayEvents.HotSeatPlaylistReset:
+            {
+                BombdServer.Instance.GameServer.NotifyHotSeatReset();
                 break;
             }
         }

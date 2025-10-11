@@ -8,6 +8,7 @@ using Bombd.Serialization;
 using Bombd.Serialization.Wrappers;
 using Bombd.Types.Events;
 using Bombd.Types.Network;
+using Bombd.Types.Network.Objects;
 using Bombd.Types.Network.Room;
 using Bombd.Types.Network.Simulation;
 using Bombd.Types.Requests;
@@ -29,6 +30,14 @@ public class GameServer : BombdService
     private readonly List<MigrationGroup> _playerMigrationGroups = [];
     public event EventHandler<PlayerJoinEventArgs>? OnPlayerJoined;
     public event EventHandler<PlayerLeaveEventArgs>? OnPlayerLeft;
+    private volatile bool _wantResetHotLap;
+    
+    public void NotifyHotSeatReset()
+    {
+        // Going to handle the actual reset in the main loop to
+        // avoid any issues with syncing.
+        _wantResetHotLap = true;
+    }
     
     public void UpdateGuestStatuses(GamePlayer player, GuestStatusBlock block)
     {
@@ -561,7 +570,7 @@ public class GameServer : BombdService
 
     public override void OnTick()
     {
-        List<GameRoom> rooms = Bombd.RoomManager.GetRooms();
+        var rooms = Bombd.RoomManager.GetRooms();
         foreach (GameRoom room in rooms)
         {
             // Don't bother updating game sessions that are empty
@@ -576,6 +585,16 @@ public class GameServer : BombdService
         HandlePlayerLeaveRequests();
         HandlePlayerJoinRequests();
         ClearExpiredReservations();
+
+        if (_wantResetHotLap)
+        {
+            Logger.LogInfo<GameServer>($"Got hot lap refresh message from PlayerConnect, re-syncing playlist to game rooms!");
+            _wantResetHotLap = false;
+            
+            EventSettings settings = WebApiManager.GetHotSeat();
+            foreach (GameRoom room in rooms)
+                room.Simulation.OnHotSeatPlaylistRefresh(settings);
+        }
     }
 
     public override void OnDisconnected(ConnectionBase connection)

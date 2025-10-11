@@ -42,4 +42,9 @@ public static class GatewayEvents
     /// Receive: A player has been disconnected from the Web API.
     /// </summary>
     public const string PlayerSessionDestroyed = "PLAYER_SESSION_DESTROYED";
+    
+    /// <summary>
+    /// Receive: New hot seat playlist has been set
+    /// </summary>
+    public const string HotSeatPlaylistReset = "HOT_SEAT_PLAYLIST_RESET";
 }
