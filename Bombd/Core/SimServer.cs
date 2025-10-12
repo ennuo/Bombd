@@ -1,3 +1,4 @@
+using System.Numerics;
 using Bombd.Extensions;
 using Bombd.Globals;
 using Bombd.Helpers;
@@ -125,7 +126,7 @@ public class SimServer
 
     private void SwitchAllToRacers()
     {
-        foreach (GamePlayer player in _players)
+        foreach (GamePlayer player in _players.Where(x => x.State.Away == 0))
             player.IsSpectator = false;
         foreach (PlayerInfo info in _playerInfos)
             info.Operation = PlayerJoinStatus.RacerPending;
@@ -271,8 +272,9 @@ public class SimServer
         if (player.UserId == Owner)
         {
             var random = new Random();
-            int index = random.Next(0, _players.Count);
-            var randomPlayer = _players[index];
+            var availablePlayers = _players.Where(x => x.State.Away == 0).ToArray();
+            int index = random.Next(0, availablePlayers.Length);
+            var randomPlayer = availablePlayers[index];
 
             Owner = randomPlayer.UserId;
             if (_raceSettings != null)
@@ -1720,7 +1722,7 @@ public class SimServer
         if (_raceSettings != null && room.State < RoomState.RaceInProgress)
         {
             int numReadyPlayers =
-                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0 && !x.IsSpectator);
+                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0 && x.State.Away == 0);
             bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans;
 
             // Karting, series races, and ranked races don't allow the "owner" to start the race
