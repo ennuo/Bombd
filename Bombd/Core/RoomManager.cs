@@ -110,7 +110,8 @@ public class RoomManager
         request.Attributes["__JOIN_MODE"] = "OPEN";
         request.Attributes["__MM_MODE_G"] = "OPEN";
         request.Attributes["__MM_MODE_P"] = "OPEN";
-        
+        request.Attributes["IS_LOCKED"] = "0";
+
         // Set default server type if none was provided, although this
         // generally shouldn't happen
         request.Attributes.TryAdd("SERVER_TYPE", "kartPark");
@@ -281,7 +282,8 @@ public class RoomManager
             attr["__MM_MODE_G"] = visibility;
             attr["__MM_MODE_P"] = visibility;
             attr["__JOIN_MODE"] = visibility;
-            
+            attr["IS_LOCKED"] = (room.Simulation.RaceState >= RaceState.LoadingIntoRace || !room.Simulation.CanJoinAsRacer()) ? "1" : "0";
+
             attr["__MAX_PLAYERS"] = settings.MaxHumans.ToString();
             
             // TODO: Adjust player counts on Karting?
