@@ -1454,6 +1454,7 @@ public class SimServer
                 // Patch our existing player state with the new message
                 player.State.Update(state);
 
+                // Check if player is away, if they are switch them to spectator so they do not join the race
                 if (player.State.Away != 0)
                     SwitchToSpectator(player);
                 else
