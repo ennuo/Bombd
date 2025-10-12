@@ -436,6 +436,8 @@ public class SimServer
             { 
                 BroadcastPlayerState();
                 SwitchAllToRacers();
+                if (_raceSettings != null)
+                    Room.UpdateAttributes(_raceSettings.Value);
                 break;
             }
             case RoomState.RaceInProgress:
@@ -443,6 +445,8 @@ public class SimServer
                 StartEvent();
                 BroadcastSessionInfo();
                 BroadcastPlayerState();
+                if (_raceSettings != null)
+                    Room.UpdateAttributes(_raceSettings.Value);
                 break;
             }
             case RoomState.Ready:
