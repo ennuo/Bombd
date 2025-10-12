@@ -152,6 +152,22 @@ public class SimServer
             UpdateRaceSetup();
     }
 
+    private void SwitchToRacer(GamePlayer player)
+    {
+        if (!player.IsSpectator) return;
+
+        player.IsSpectator = false;
+        if (IsKarting) BroadcastSessionInfo();
+        else
+        {
+            Broadcast(new NetMessageSessionInfo(PlayerSessionOperation.SwitchSpectatorToRacer, player.UserId),
+                NetMessageType.PlayerSessionInfo);
+        }
+
+        if (RaceState == RaceState.GameroomCountdown)
+            UpdateRaceSetup();
+    }
+
     private void BroadcastSessionInfo()
     {
         // In ModNation, the session messages seem to only be switches and joins rather than their actual states,
@@ -381,7 +397,7 @@ public class SimServer
         if (IsModNation)
         {
             int trackId = _raceSettings.Value.CreationId;
-            List<int> playerIds = _players.Where(player => !player.IsSpectator && player.State.Away != 0)
+            List<int> playerIds = _players.Where(player => !player.IsSpectator)
                 .Select(player => player.State.PlayerConnectId).ToList();
             BombdServer.Comms.NotifyEventStarted(trackId, playerIds);   
         }
@@ -1437,6 +1453,11 @@ public class SimServer
 
                 // Patch our existing player state with the new message
                 player.State.Update(state);
+
+                if (player.State.Away != 0)
+                    SwitchToSpectator(player);
+                else
+                    SwitchToRacer(player);
                 
                 // If we're not in a gameroom, there's no GameroomReady event, so wait until we've received
                 // the player config and the second player state update to finish our "connecting" process.
@@ -1694,7 +1715,7 @@ public class SimServer
         if (_raceSettings != null && room.State < RoomState.RaceInProgress)
         {
             int numReadyPlayers =
-                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0);
+                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0 && !x.IsSpectator);
             bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans;
 
             // Karting, series races, and ranked races don't allow the "owner" to start the race
