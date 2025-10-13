@@ -207,9 +207,10 @@ public class SslConnection : ConnectionBase
                     } while (offset < payloadSize);
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 Logger.LogError<SslConnection>("An error occurred while reading from socket. Closing connection.");
+                Logger.LogDebug<SslConnection>(ex.ToString());
                 Disconnect();
                 return;
             }
