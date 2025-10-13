@@ -149,9 +149,10 @@ public class SslConnection : ConnectionBase
                     offset += size;
                 } while (offset < messageSize);
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 Logger.LogError<SslConnection>("An error occurred during send. Closing connection.");
+                Logger.LogDebug<SslConnection>(e.ToString());
                 Disconnect();
             }
         }
@@ -207,10 +208,10 @@ public class SslConnection : ConnectionBase
                     } while (offset < payloadSize);
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
                 Logger.LogError<SslConnection>("An error occurred while reading from socket. Closing connection.");
-                Logger.LogDebug<SslConnection>(ex.ToString());
+                Logger.LogDebug<SslConnection>(e.ToString());
                 Disconnect();
                 return;
             }
