@@ -66,6 +66,11 @@ public class BombdConfig
     ///     How many times each service performs an update in a second.
     /// </summary>
     public int TickRate { get; set; } = 15;
+
+    /// <summary>
+    ///     The maximum log level to log messages from.
+    /// </summary>
+    public string MaxLogLevel { get; set; } = Enum.GetName(LogLevel.Info);
     
     /// <summary>
     ///     Whether or not connections from LittleBigPlanet Karting are allowed.

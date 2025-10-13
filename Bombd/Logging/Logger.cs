@@ -6,13 +6,8 @@ namespace Bombd.Logging;
 
 public class Logger
 {
-#if DEBUG
-    private const LogLevel MaxLevel = LogLevel.Trace;
-#else
-    private const LogLevel MaxLevel = LogLevel.Info;
-#endif
-    
     private static readonly ConcurrentQueue<LogEntry> LogQueue = new();
+    private static LogLevel MaxLevel = LogLevel.Info;
 
     static Logger()
     {
@@ -47,6 +42,8 @@ public class Logger
             _ => ConsoleColor.White
         };
     }
+
+    public static void SetLogMaxLevel(LogLevel level) => MaxLevel = level;
 
     public static void LogError<T>(string message) => Log<T>(LogLevel.Error, message);
     public static void LogWarning<T>(string message) => Log<T>(LogLevel.Warning, message);
