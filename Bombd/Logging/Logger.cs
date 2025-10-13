@@ -49,10 +49,8 @@ public class Logger
     public static void LogWarning<T>(string message) => Log<T>(LogLevel.Warning, message);
     public static void LogInfo<T>(string message) => Log<T>(LogLevel.Info, message);
     
-    [Conditional("DEBUG")]
     public static void LogDebug<T>(string message) => Log<T>(LogLevel.Debug, message);
     
-    [Conditional("DEBUG")]
     public static void LogTrace<T>(string message) => Log<T>(LogLevel.Trace, message);
     
     public static void Log<T>(LogLevel level, string message)
@@ -64,10 +62,8 @@ public class Logger
     public static void LogWarning(Type type, string message) => Log(type, LogLevel.Warning, message);
     public static void LogInfo(Type type, string message) => Log(type, LogLevel.Info, message);
     
-    [Conditional("DEBUG")]
     public static void LogDebug(Type type, string message) => Log(type, LogLevel.Debug, message);
     
-    [Conditional("DEBUG")]
     public static void LogTrace(Type type, string message) => Log(type, LogLevel.Trace, message);
 
     public static void Log(Type type, LogLevel level, string message)

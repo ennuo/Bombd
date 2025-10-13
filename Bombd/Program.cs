@@ -3,9 +3,7 @@ using Bombd.Logging;
 using Bombd.Services;
 using Directory = Bombd.Services.Directory;
 
-var logLevel = Enum.Parse<LogLevel>(BombdConfig.Instance.MaxLogLevel);
-Logger.SetLogMaxLevel(logLevel);
-Logger.LogInfo<Program>($"Max log level is now {BombdConfig.Instance.MaxLogLevel} ({logLevel})");
+Logger.SetLogMaxLevel(Enum.Parse<LogLevel>(BombdConfig.Instance.MaxLogLevel));
 
 string certificate = BombdConfig.Instance.PfxCertificate;
 if (string.IsNullOrEmpty(certificate))
