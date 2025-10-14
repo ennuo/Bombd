@@ -167,6 +167,7 @@ public abstract class BombdService
         int userId = CryptoHelper.StringHash32Upper(ticket.Username + (isRPCN ? "RPCN" : "PSN"));
         if (UserInfo.ContainsKey(userId))
         {
+            Logger.LogError(_type, $"User already has a session with state {UserInfo[userId].State}");
             response.Error = "alreadyLoggedIn";
             return false;
         }
