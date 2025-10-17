@@ -15,7 +15,7 @@ namespace Bombd.Core;
 
 public sealed class ServerComm : IDisposable
 {
-    private const int MaxMessageSize = 4096;
+    private const int MaxMessageSize = 16384;
     private readonly int EncryptedHeaderSize = AesGcm.NonceByteSizes.MaxSize + AesGcm.TagByteSizes.MaxSize;
     private const string MasterServer = "API";
 
@@ -29,6 +29,7 @@ public sealed class ServerComm : IDisposable
     private readonly byte[] _encryptBuffer = new byte[MaxMessageSize];
     private readonly byte[] _sendBuffer = new byte[MaxMessageSize];
     private readonly byte[] _recvBuffer = new byte[MaxMessageSize];
+    private CancellationTokenSource _source = new();
     
     public ServerComm()
     {
@@ -102,11 +103,16 @@ public sealed class ServerComm : IDisposable
                 Logger.LogWarning<ServerComm>("Could not connect to Web API waiting before retrying...");
                 await Task.Delay(5000); // Wait some amount of time before retrying connection
             }
+
+            if (_source.IsCancellationRequested)
+            {
+                _source.Dispose();
+                _source = new CancellationTokenSource();
+            }
             
             Logger.LogInfo<ServerComm>("Successfully connected to Web API!");
             
             WebApiManager.Initialize();
-
             Task send = Task.Run(async () => await Send());
             Task receive = Task.Run(async () => await Receive());
             
@@ -120,6 +126,8 @@ public sealed class ServerComm : IDisposable
             
             await Task.WhenAll(send, receive);
             _socket.Dispose();
+            
+            Logger.LogWarning<ServerComm>("Connection to the Web API was lost!");
         }
     }
 
@@ -144,22 +152,31 @@ public sealed class ServerComm : IDisposable
     
     private async Task Send()
     {
-        while (_socket.State == WebSocketState.Open)
+        try
         {
-            await foreach (GatewayMessage message in _pendingMessages.Reader.ReadAllAsync())
+            while (await _pendingMessages.Reader.WaitToReadAsync(_source.Token))
             {
-                Logger.LogDebug<ServerComm>("SEND: " + message.Type);
-                Logger.LogDebug<ServerComm>("DATA: " + message.Content);
+                while (_pendingMessages.Reader.TryRead(out GatewayMessage? message))
+                {
+                    Logger.LogDebug<ServerComm>("SEND: " + message.Type);
+                    Logger.LogDebug<ServerComm>("DATA: " + message.Content);
 
-                string json = JsonSerializer.Serialize(message);
-                int len = EncryptIntoSendBuffer(json);
-                var type = _aes != null ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
-                var payload = new ArraySegment<byte>(_sendBuffer, 0, len);
-                
-                if (_socket.State == WebSocketState.Open)
-                    await _socket.SendAsync(payload, type, true, CancellationToken.None);   
+                    string json = JsonSerializer.Serialize(message);
+                    int len = EncryptIntoSendBuffer(json);
+                    var type = _aes != null ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
+                    var payload = new ArraySegment<byte>(_sendBuffer, 0, len);
+
+                    if (_socket.State == WebSocketState.Open)
+                        await _socket.SendAsync(payload, type, true, _source.Token);
+                }
             }
         }
+        catch (OperationCanceledException)
+        {
+            // Ignore!
+        }
+        
+        Logger.LogDebug<ServerComm>("Send thread is closing down...");
     }
     
     private async Task Receive()
@@ -169,7 +186,12 @@ public sealed class ServerComm : IDisposable
             WebSocketReceiveResult result;
             try
             {
-                result = await _socket.ReceiveAsync(_recvBuffer, CancellationToken.None);
+                result = await _socket.ReceiveAsync(_recvBuffer, _source.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Nothing to handle...
+                break;
             }
             catch (Exception)
             {
@@ -225,7 +247,10 @@ public sealed class ServerComm : IDisposable
                 Logger.LogDebug<ServerComm>($"Failed to process message: {e}");
             }
         }
-
+        
+        Logger.LogDebug<ServerComm>("Read thread is closing down...");
+        await _source.CancelAsync();
+        
         if (_socket is { State: WebSocketState.Aborted or WebSocketState.Closed or WebSocketState.CloseSent })
             return;
         

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -112,6 +113,7 @@ public class SslConnection : ConnectionBase
         _server.Connections.Remove(Id);
         if (State > ConnectionState.WaitingForConnection)
             Service.OnDisconnected(this);
+        State = ConnectionState.Disconnected;
     }
 
     private void OnKeepAliveTimerElapsed(object? source, ElapsedEventArgs e)
