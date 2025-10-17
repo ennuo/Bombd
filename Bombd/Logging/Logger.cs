@@ -6,13 +6,8 @@ namespace Bombd.Logging;
 
 public class Logger
 {
-#if DEBUG
-    private const LogLevel MaxLevel = LogLevel.Trace;
-#else
-    private const LogLevel MaxLevel = LogLevel.Info;
-#endif
-    
     private static readonly ConcurrentQueue<LogEntry> LogQueue = new();
+    private static LogLevel MaxLevel = LogLevel.Info;
 
     static Logger()
     {
@@ -48,14 +43,14 @@ public class Logger
         };
     }
 
+    public static void SetLogMaxLevel(LogLevel level) => MaxLevel = level;
+
     public static void LogError<T>(string message) => Log<T>(LogLevel.Error, message);
     public static void LogWarning<T>(string message) => Log<T>(LogLevel.Warning, message);
     public static void LogInfo<T>(string message) => Log<T>(LogLevel.Info, message);
     
-    [Conditional("DEBUG")]
     public static void LogDebug<T>(string message) => Log<T>(LogLevel.Debug, message);
     
-    [Conditional("DEBUG")]
     public static void LogTrace<T>(string message) => Log<T>(LogLevel.Trace, message);
     
     public static void Log<T>(LogLevel level, string message)
@@ -67,10 +62,8 @@ public class Logger
     public static void LogWarning(Type type, string message) => Log(type, LogLevel.Warning, message);
     public static void LogInfo(Type type, string message) => Log(type, LogLevel.Info, message);
     
-    [Conditional("DEBUG")]
     public static void LogDebug(Type type, string message) => Log(type, LogLevel.Debug, message);
     
-    [Conditional("DEBUG")]
     public static void LogTrace(Type type, string message) => Log(type, LogLevel.Trace, message);
 
     public static void Log(Type type, LogLevel level, string message)

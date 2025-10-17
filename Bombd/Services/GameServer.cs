@@ -26,7 +26,7 @@ public class GameServer : BombdService
     private readonly Dictionary<string, ReservationGroup> _reservationGroups = new();
     private readonly List<PlayerJoinRequest> _playerJoinQueue = [];
     private readonly List<PlayerLeaveRequest> _playerLeaveQueue = [];
-    private readonly SemaphoreSlim _playerLock = new(1, 1);
+    private readonly object _playerLock = new();
     private readonly List<MigrationGroup> _playerMigrationGroups = [];
     public event EventHandler<PlayerJoinEventArgs>? OnPlayerJoined;
     public event EventHandler<PlayerLeaveEventArgs>? OnPlayerLeft;
@@ -41,11 +41,10 @@ public class GameServer : BombdService
     
     public void UpdateGuestStatuses(GamePlayer player, GuestStatusBlock block)
     {
-        _playerLock.Wait();
-        try
+        lock (_playerLock)
         {
             player.Room.UpdateGuestStatuses(player, block);
-            
+
             // Tell everybody else in the gameroom about any guests
             // that were either attached or detached
             var gamemanager = Bombd.GetService<GameManager>();
@@ -53,14 +52,14 @@ public class GameServer : BombdService
             {
                 bool wasAttached = guestStatus.Status == GuestStatusCode.AttachSuccess;
                 bool wasDetached = guestStatus.Status == GuestStatusCode.Detached;
-                
+
                 if (!wasAttached && !wasDetached) continue;
-                
+
                 var transaction = NetcodeTransaction.MakeRequest("gamemanager", wasAttached ? "guestJoined" : "guestLeft");
                 transaction["gamename"] = player.Room.Game.GameName;
                 transaction["playername"] = player.Username;
                 transaction["guestname"] = guestStatus.Username;
-                
+
                 foreach (var peer in player.Room.Game.Players)
                 {
                     if (peer == player) continue;
@@ -68,22 +67,17 @@ public class GameServer : BombdService
                 }
             }
         }
-        finally
-        {
-            _playerLock.Release();
-        }
     }
 
     public bool ReserveSlotsInGame(string gameName, int numSlots, [MaybeNullWhen(false)] out string reservationKey)
     {
         reservationKey = null;
-        _playerLock.Wait();
-        try
+        lock (_playerLock)
         {
             GameRoom? room = Bombd.RoomManager.GetRoomByName(gameName);
             if (room == null) return false;
             if (room.NumFreeSlots < numSlots) return false;
-            
+
             var slots = new Queue<int>();
             for (int i = 0; i < numSlots; ++i)
             {
@@ -101,25 +95,20 @@ public class GameServer : BombdService
 
             return true;
         }
-        finally
-        {
-            _playerLock.Release();
-        }
     }
 
     public void AddMigrationGroup(GameMigrationRequest request)
     {
-        _playerLock.Wait();
-        try
+        lock (_playerLock)
         {
             // This shouldn't be normally possible, so we don't need to send back errors or anything, just return.
             GameRoom? currentRoom = Bombd.RoomManager.GetRoomByUser(request.HostUserId);
             if (currentRoom == null) return;
-            
+
             var gamemanager = Bombd.GetService<GameManager>();
             bool isCreatingGame = string.IsNullOrEmpty(request.GameName);
             bool isJoiningGame = !isCreatingGame;
-            
+
             GameRoom migratedRoom;
             if (isCreatingGame)
             {
@@ -128,7 +117,7 @@ public class GameServer : BombdService
                     Attributes = request.Attributes!,
                     OwnerUserId = request.HostUserId,
                     Platform = request.Platform
-                });   
+                });
             }
             else
             {
@@ -142,13 +131,13 @@ public class GameServer : BombdService
 
                 }
             }
-            
+
             // Fairly sure with migration requests, guests are only ever attached when
             // starting a game from the co-op menu, so it should only ever be the "host's" single guest.
             string? guest = request.Guest;
             int numSlotsRequired = request.PlayerIdList.Count;
             if (guest != null) numSlotsRequired++;
-            
+
             // If we're creating the game, we'll always have enough slots
             // So we have to make sure there are when joining
             if (isJoiningGame)
@@ -159,9 +148,9 @@ public class GameServer : BombdService
                     transaction.Error = JoinFailReason.NotEnoughSlots;
                     gamemanager.SendTransaction(request.HostUserId, transaction);
                     return;
-                }   
+                }
             }
-            
+
             var group = new MigrationGroup
             {
                 OldRoom = currentRoom,
@@ -171,22 +160,22 @@ public class GameServer : BombdService
                 OwnerGuest = request.Guest,
                 Players = []
             };
-            
+
             // Make sure we get a slot for the guest
             if (guest != null)
             {
                 migratedRoom.RequestSlot(out int guestId);
                 group.OwnerGuestId = guestId;
             }
-            
+
             foreach (GenericInt32 playerId in request.PlayerIdList)
             {
                 // If the player isn't in the game, just ignore them
                 if (!currentRoom.IsPlayerInGame(playerId)) continue;
-                
+
                 GamePlayer player = currentRoom.GetPlayer(playerId);
                 ConnectionBase connection = UserInfo[player.UserId];
-                
+
                 migratedRoom.RequestSlot(out int slot);
                 group.Players.Add(new MigratingPlayer
                 {
@@ -206,16 +195,11 @@ public class GameServer : BombdService
 
             _playerMigrationGroups.Add(group);
         }
-        finally
-        {
-            _playerLock.Release();
-        }
     }
 
     public void AddPlayerToLeaveQueue(int userId, string username, string reason)
     {
-        _playerLock.Wait();
-        try
+        lock (_playerLock)
         {
             _playerLeaveQueue.Add(new PlayerLeaveRequest
             {
@@ -224,43 +208,34 @@ public class GameServer : BombdService
                 Reason = reason
             });
         }
-        finally
-        {
-            _playerLock.Release();
-        }
     }
 
     public void AddPlayerToJoinQueue(PlayerJoinRequest request)
     {
-        _playerLock.Wait();
-        try
+        lock (_playerLock)
         {
             _playerJoinQueue.Add(request);
-        }
-        finally
-        {
-            _playerLock.Release();
         }
     }
 
     private void HandlePlayerLeaveRequests()
     {
-        _playerLock.Wait();
-
-        foreach (PlayerLeaveRequest request in _playerLeaveQueue)
+        lock (_playerLock)
         {
-            GamePlayer? player = Bombd.RoomManager.GetPlayerInRoom(request.UserId);
-            if (player == null)
+            foreach (PlayerLeaveRequest request in _playerLeaveQueue)
             {
-                Logger.LogWarning<GameServer>($"{request.Username} tried to leave a game, but they aren't in one!");
-                continue;
-            }
-            
-            LeaveGameInternal(player, request.Reason);
-        }
+                GamePlayer? player = Bombd.RoomManager.GetPlayerInRoom(request.UserId);
+                if (player == null)
+                {
+                    Logger.LogWarning<GameServer>($"{request.Username} tried to leave a game, but they aren't in one!");
+                    continue;
+                }
 
-        _playerLeaveQueue.Clear();
-        _playerLock.Release();
+                LeaveGameInternal(player, request.Reason);
+            }
+
+            _playerLeaveQueue.Clear();
+        }
     }
 
     private void LeaveGameInternal(GamePlayer player, string reason)
@@ -295,259 +270,260 @@ public class GameServer : BombdService
 
     private void HandlePlayerJoinRequests()
     {
-        _playerLock.Wait();
-        for (int i = 0; i < _playerJoinQueue.Count; ++i)
+        lock (_playerLock)
         {
-            PlayerJoinRequest request = _playerJoinQueue[i];
-            if (TimeHelper.LocalTime > request.Timestamp + JoinTimeout)
+            for (int i = 0; i < _playerJoinQueue.Count; ++i)
             {
-                Logger.LogWarning<GameServer>(
-                    "A player took too long to join and was disconnected!");
-                _playerJoinQueue.RemoveAt(i--);
-                if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
-                    pendingConnection.Disconnect();
-                continue;
-            }
-            
-            // This generally shouldn't happen if someone isn't manually making requests,
-            // but still make sure to handle these cases.
-            GameRoom? gameRoom = Bombd.RoomManager.GetRoomByName(request.GameName);
-            if (gameRoom == null)
-            {
-                Logger.LogWarning<GameServer>(
-                    "A player tried to join a game room, but the room doesn't exist.");
-                _playerJoinQueue.RemoveAt(i--);
-                if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
-                    pendingConnection.Disconnect();
-                continue;
-            }
-
-            // Wait until the game room is ready to join before letting the player in
-            if (!gameRoom.IsReadyToJoin(request.UserId)) continue;
-            
-            // Karting doesn't use migrations and just switches games, so make sure we leave the old room.
-            // TEMP: Wait until player has left?
-            GamePlayer? existingPlayer = Bombd.RoomManager.GetPlayerInRoom(request.UserId);
-            if (existingPlayer != null) LeaveGameInternal(existingPlayer, "gameMigration");
-
-            if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? connection))
-            {
-                if (!connection.IsAuthenticated) continue;
-
-                GamePlayer? player;
-                if (request.ReservationKey != null)
+                PlayerJoinRequest request = _playerJoinQueue[i];
+                if (TimeHelper.LocalTime > request.Timestamp + JoinTimeout)
                 {
-                    // Make sure the reservation key actually exists
-                    if (!_reservationGroups.TryGetValue(request.ReservationKey, out ReservationGroup group))
-                    {
-                        Logger.LogWarning<GameServer>(
-                            "A player tried to join a game room with an invalid reservation key!");
-                        _playerJoinQueue.RemoveAt(i--);
-                        if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
-                            pendingConnection.Disconnect();
-                        continue;
-                    }
-                    
-                    // Shouldn't happen, but if it does, make sure we don't mismatch reservations
-                    if (group.Room != gameRoom)
-                    {
-                        Logger.LogWarning<GameServer>(
-                            "A player tried to join a game room with a mismatched reservation key!");
-                        _playerJoinQueue.RemoveAt(i--);
-                        if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
-                            pendingConnection.Disconnect();
-                        continue;
-                    }
-                    
-                    Logger.LogDebug<GameServer>($"{request.Username} is joining room using a reservation (guest={request.Guest})");
-                    
-                    // Reservations in Karting are a bit wonky right now, and I can't really test it,
-                    // so we'll need this check to prevent any exceptions
-                    string? guest = request.Guest;
-                    int numSlotsRequired = 1;
-                    if (guest != null) numSlotsRequired++;
-                    if (group.Slots.Count < numSlotsRequired)
-                    {
-                        Logger.LogWarning<GameServer>("A player tried to join a game room with a reservation that doesn't have enough slots!");
-                        continue;
-                    };
+                    Logger.LogWarning<GameServer>(
+                        "A player took too long to join and was disconnected!");
+                    _playerJoinQueue.RemoveAt(i--);
+                    if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
+                        pendingConnection.Disconnect();
+                    continue;
+                }
 
-                    int playerId = group.Slots.Dequeue();
-                    if (guest == null)
+                // This generally shouldn't happen if someone isn't manually making requests,
+                // but still make sure to handle these cases.
+                GameRoom? gameRoom = Bombd.RoomManager.GetRoomByName(request.GameName);
+                if (gameRoom == null)
+                {
+                    Logger.LogWarning<GameServer>(
+                        "A player tried to join a game room, but the room doesn't exist.");
+                    _playerJoinQueue.RemoveAt(i--);
+                    if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
+                        pendingConnection.Disconnect();
+                    continue;
+                }
+
+                // Wait until the game room is ready to join before letting the player in
+                if (!gameRoom.IsReadyToJoin(request.UserId)) continue;
+
+                // Karting doesn't use migrations and just switches games, so make sure we leave the old room.
+                // TEMP: Wait until player has left?
+                GamePlayer? existingPlayer = Bombd.RoomManager.GetPlayerInRoom(request.UserId);
+                if (existingPlayer != null) LeaveGameInternal(existingPlayer, "gameMigration");
+
+                if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? connection))
+                {
+                    if (!connection.IsAuthenticated) continue;
+
+                    GamePlayer? player;
+                    if (request.ReservationKey != null)
                     {
-                        player = Bombd.RoomManager.JoinRoom(connection.Username, connection.UserId, playerId,
-                            group.Room);
+                        // Make sure the reservation key actually exists
+                        if (!_reservationGroups.TryGetValue(request.ReservationKey, out ReservationGroup group))
+                        {
+                            Logger.LogWarning<GameServer>(
+                                "A player tried to join a game room with an invalid reservation key!");
+                            _playerJoinQueue.RemoveAt(i--);
+                            if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
+                                pendingConnection.Disconnect();
+                            continue;
+                        }
+
+                        // Shouldn't happen, but if it does, make sure we don't mismatch reservations
+                        if (group.Room != gameRoom)
+                        {
+                            Logger.LogWarning<GameServer>(
+                                "A player tried to join a game room with a mismatched reservation key!");
+                            _playerJoinQueue.RemoveAt(i--);
+                            if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
+                                pendingConnection.Disconnect();
+                            continue;
+                        }
+
+                        Logger.LogDebug<GameServer>($"{request.Username} is joining room using a reservation (guest={request.Guest})");
+
+                        // Reservations in Karting are a bit wonky right now, and I can't really test it,
+                        // so we'll need this check to prevent any exceptions
+                        string? guest = request.Guest;
+                        int numSlotsRequired = 1;
+                        if (guest != null) numSlotsRequired++;
+                        if (group.Slots.Count < numSlotsRequired)
+                        {
+                            Logger.LogWarning<GameServer>("A player tried to join a game room with a reservation that doesn't have enough slots!");
+                            continue;
+                        }
+                        ;
+
+                        int playerId = group.Slots.Dequeue();
+                        if (guest == null)
+                        {
+                            player = Bombd.RoomManager.JoinRoom(connection.Username, connection.UserId, playerId,
+                                group.Room);
+                        }
+                        else
+                        {
+                            int guestId = group.Slots.Dequeue();
+                            player = Bombd.RoomManager.JoinRoomWithGuest(connection.Username, guest, connection.UserId, playerId,
+                                guestId, group.Room);
+                        }
+
+                        if (group.Slots.Count == 0)
+                        {
+                            Logger.LogDebug<GameServer>($"Destroying reservation {request.ReservationKey} since all slots have been used!");
+                            _reservationGroups.Remove(request.ReservationKey);
+                        }
+                    }
+                    else player = Bombd.RoomManager.RequestJoinRoom(connection.Username, connection.UserId, gameRoom, request.Guest);
+
+                    if (player != null)
+                    {
+                        // For convenience, we attach the send method directly to the game player object,
+                        // so that no lookups have to be performed within the simulation server environment.
+                        player.Send = (bytes, type) => SendMessage(player.UserId, bytes, type);
+                        player.Disconnect = () => Disconnect(player.UserId);
+
+                        Logger.LogInfo<GameServer>($"{player.Username} joined {gameRoom.Game.GameName}.");
+
+                        // Make sure to tell both the simulation instance and anything subscribed to game events
+                        // about the new player that joined.
+                        gameRoom.Simulation.OnPlayerJoin(player);
+                        OnPlayerJoined?.Invoke(this, new PlayerJoinEventArgs
+                        {
+                            Room = gameRoom,
+                            Player = player,
+                            WasMigration = false
+                        });
                     }
                     else
                     {
-                        int guestId = group.Slots.Dequeue();
-                        player = Bombd.RoomManager.JoinRoomWithGuest(connection.Username, guest, connection.UserId, playerId,
-                            guestId, group.Room);
+                        Logger.LogWarning<GameServer>(
+                            $"{connection.Username} tried to join {gameRoom.Game.GameName}, but operation failed.");
+                        if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
+                            pendingConnection.Disconnect();
                     }
 
-                    if (group.Slots.Count == 0)
-                    {
-                        Logger.LogDebug<GameServer>($"Destroying reservation {request.ReservationKey} since all slots have been used!");
-                        _reservationGroups.Remove(request.ReservationKey);
-                    }
+                    _playerJoinQueue.RemoveAt(i--);
                 }
-                else player = Bombd.RoomManager.RequestJoinRoom(connection.Username, connection.UserId, gameRoom, request.Guest);
-                
-                if (player != null)
-                {
-                    // For convenience, we attach the send method directly to the game player object,
-                    // so that no lookups have to be performed within the simulation server environment.
-                    player.Send = (bytes, type) => SendMessage(player.UserId, bytes, type);
-                    player.Disconnect = () => Disconnect(player.UserId);
-                    
-                    Logger.LogInfo<GameServer>($"{player.Username} joined {gameRoom.Game.GameName}.");
-
-                    // Make sure to tell both the simulation instance and anything subscribed to game events
-                    // about the new player that joined.
-                    gameRoom.Simulation.OnPlayerJoin(player);
-                    OnPlayerJoined?.Invoke(this, new PlayerJoinEventArgs
-                    {
-                        Room = gameRoom,
-                        Player = player,
-                        WasMigration = false
-                    });
-                }
-                else
-                {
-                    Logger.LogWarning<GameServer>(
-                        $"{connection.Username} tried to join {gameRoom.Game.GameName}, but operation failed.");
-                    if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
-                        pendingConnection.Disconnect();
-                }
-
-                _playerJoinQueue.RemoveAt(i--);
             }
-        }
 
-        _playerLock.Release();
+        }
     }
 
     private void HandlePlayerMigrationRequests()
     {
-        _playerLock.Wait();
-        int time = TimeHelper.LocalTime;
-        for (int i = 0; i < _playerMigrationGroups.Count; ++i)
+        lock (_playerLock)
         {
-            MigrationGroup group = _playerMigrationGroups[i];
-            foreach (MigratingPlayer player in group.Players)
+            int time = TimeHelper.LocalTime;
+            for (int i = 0; i < _playerMigrationGroups.Count; ++i)
             {
-                if (player.Status >= MigrationStatus.Migrated) continue;
-                if (time > group.Timestamp + MigrationTimeout)
+                MigrationGroup group = _playerMigrationGroups[i];
+                foreach (MigratingPlayer player in group.Players)
                 {
-                    player.Status = MigrationStatus.MigrationFailed;
-                    continue;
+                    if (player.Status >= MigrationStatus.Migrated) continue;
+                    if (time > group.Timestamp + MigrationTimeout)
+                    {
+                        player.Status = MigrationStatus.MigrationFailed;
+                        continue;
+                    }
+
+                    if (!UserInfo.TryGetValue(player.UserId, out ConnectionBase? connection))
+                    {
+                        if (player.Status == MigrationStatus.WaitingForDisconnect)
+                            player.Status = MigrationStatus.WaitingForConnect;
+
+                        continue;
+                    }
+
+                    if (player.Status == MigrationStatus.WaitingForConnect && connection.IsAuthenticated)
+                        player.Status = MigrationStatus.Migrated;
                 }
 
-                if (!UserInfo.TryGetValue(player.UserId, out ConnectionBase? connection))
+                bool isMigrationComplete = group.Players.All(player => player.Status >= MigrationStatus.Migrated);
+                if (!isMigrationComplete) continue;
+
+                // Now that all users are connected to the gameserver, let's add them to the game room
+                GameRoom room = group.NewRoom;
+                foreach (MigratingPlayer player in group.Players)
                 {
-                    if (player.Status == MigrationStatus.WaitingForDisconnect)
-                        player.Status = MigrationStatus.WaitingForConnect;
+                    bool isOwner = player.UserId == group.Owner;
+                    string? guest = isOwner ? group.OwnerGuest : null;
 
-                    continue;
-                }
+                    // In case the player closed their game during migration or if something else caused a disconnection.
+                    if (!UserInfo.TryGetValue(player.UserId, out ConnectionBase? connection) || !connection.IsAuthenticated)
+                    {
+                        player.Status = MigrationStatus.MigrationFailed;
+                        group.NewRoom.FreeSlot(player.NewPlayerId);
+                        if (isOwner && guest != null)
+                            group.NewRoom.FreeSlot(group.OwnerGuestId);
+                        continue;
+                    }
 
-                if (player.Status == MigrationStatus.WaitingForConnect && connection.IsAuthenticated)
-                    player.Status = MigrationStatus.Migrated;
-            }
-
-            bool isMigrationComplete = group.Players.All(player => player.Status >= MigrationStatus.Migrated);
-            if (!isMigrationComplete) continue;
-
-            // Now that all users are connected to the gameserver, let's add them to the game room
-            GameRoom room = group.NewRoom;
-            foreach (MigratingPlayer player in group.Players)
-            {
-                bool isOwner = player.UserId == group.Owner;
-                string? guest = isOwner ? group.OwnerGuest : null;
-                
-                // In case the player closed their game during migration or if something else caused a disconnection.
-                if (!UserInfo.TryGetValue(player.UserId, out ConnectionBase? connection) || !connection.IsAuthenticated)
-                {
-                    player.Status = MigrationStatus.MigrationFailed;
-                    group.NewRoom.FreeSlot(player.NewPlayerId);
+                    GamePlayer gamePlayer;
                     if (isOwner && guest != null)
-                        group.NewRoom.FreeSlot(group.OwnerGuestId);
-                    continue;
+                    {
+                        gamePlayer = Bombd.RoomManager.JoinRoomWithGuest(connection.Username, guest, connection.UserId,
+                            player.NewPlayerId, group.OwnerGuestId, group.NewRoom);
+                    }
+                    else
+                    {
+                        gamePlayer = Bombd.RoomManager.JoinRoom(connection.Username, connection.UserId,
+                            player.NewPlayerId, group.NewRoom);
+                    }
+
+                    gamePlayer.Send = (bytes, type) => SendMessage(gamePlayer.UserId, bytes, type);
+                    gamePlayer.Disconnect = () => Disconnect(player.UserId);
+                    Logger.LogInfo<GameServer>($"{gamePlayer.Username} migrated to {room.Game.GameName}.");
+                    room.Simulation.OnPlayerJoin(gamePlayer);
+                    OnPlayerJoined?.Invoke(this, new PlayerJoinEventArgs
+                    {
+                        Room = room,
+                        Player = gamePlayer,
+                        WasMigration = true
+                    });
                 }
 
-                GamePlayer gamePlayer;
-                if (isOwner && guest != null)
+                List<GenericInt32> migratedPlayers = group.Players
+                    .Where(player => player.Status == MigrationStatus.Migrated)
+                    .Select(player => new GenericInt32(player.OldPlayerId)).ToList();
+
+                List<GenericInt32> unmigratedPlayers = group.Players
+                    .Where(player => player.Status == MigrationStatus.MigrationFailed)
+                    .Select(player => new GenericInt32(player.OldPlayerId)).ToList();
+
+                // Tell the old room about the migration that just occurred
+                var gamemanager = Bombd.GetService<GameManager>();
+                var transaction = NetcodeTransaction.MakeRequest("gamemanager", "gameMigrationOccured");
+                transaction["numPlayersMigrated"] = migratedPlayers.Count.ToString();
+                transaction["numPlayersNotMigrated"] = unmigratedPlayers.Count.ToString();
+                transaction["playersNotMigrated"] = Convert.ToBase64String(NetworkWriter.Serialize(unmigratedPlayers));
+                transaction["playersMigrated"] = Convert.ToBase64String(NetworkWriter.Serialize(migratedPlayers));
+                foreach (GamePlayer player in group.OldRoom.Game.Players)
+                    gamemanager.SendTransaction(player.UserId, transaction);
+
+                // If any of the old players are still connected to the gamemanager
+                // tell them that they failed to migrate
+                foreach (MigratingPlayer player in group.Players)
                 {
-                    gamePlayer = Bombd.RoomManager.JoinRoomWithGuest(connection.Username, guest, connection.UserId,
-                        player.NewPlayerId, group.OwnerGuestId, group.NewRoom);
+                    if (player.Status != MigrationStatus.MigrationFailed) continue;
+                    transaction = NetcodeTransaction.MakeRequest("gamemanager", "gameMigrationFailure");
+                    transaction.Error = "timeout";
+                    SendTransaction(player.UserId, transaction);
                 }
-                else
-                {
-                    gamePlayer = Bombd.RoomManager.JoinRoom(connection.Username, connection.UserId,
-                        player.NewPlayerId, group.NewRoom);    
-                }
-                
-                gamePlayer.Send = (bytes, type) => SendMessage(gamePlayer.UserId, bytes, type);
-                gamePlayer.Disconnect = () => Disconnect(player.UserId);
-                Logger.LogInfo<GameServer>($"{gamePlayer.Username} migrated to {room.Game.GameName}.");
-                room.Simulation.OnPlayerJoin(gamePlayer);
-                OnPlayerJoined?.Invoke(this, new PlayerJoinEventArgs
-                {
-                    Room = room,
-                    Player = gamePlayer,
-                    WasMigration = true
-                });
+
+                _playerMigrationGroups.RemoveAt(i--);
             }
-
-            List<GenericInt32> migratedPlayers = group.Players
-                .Where(player => player.Status == MigrationStatus.Migrated)
-                .Select(player => new GenericInt32(player.OldPlayerId)).ToList();
-
-            List<GenericInt32> unmigratedPlayers = group.Players
-                .Where(player => player.Status == MigrationStatus.MigrationFailed)
-                .Select(player => new GenericInt32(player.OldPlayerId)).ToList();
-
-            // Tell the old room about the migration that just occurred
-            var gamemanager = Bombd.GetService<GameManager>();
-            var transaction = NetcodeTransaction.MakeRequest("gamemanager", "gameMigrationOccured");
-            transaction["numPlayersMigrated"] = migratedPlayers.Count.ToString();
-            transaction["numPlayersNotMigrated"] = unmigratedPlayers.Count.ToString();
-            transaction["playersNotMigrated"] = Convert.ToBase64String(NetworkWriter.Serialize(unmigratedPlayers));
-            transaction["playersMigrated"] = Convert.ToBase64String(NetworkWriter.Serialize(migratedPlayers));
-            foreach (GamePlayer player in group.OldRoom.Game.Players)
-                gamemanager.SendTransaction(player.UserId, transaction);
-            
-            // If any of the old players are still connected to the gamemanager
-            // tell them that they failed to migrate
-            foreach (MigratingPlayer player in group.Players)
-            {
-                if (player.Status != MigrationStatus.MigrationFailed) continue;
-                transaction = NetcodeTransaction.MakeRequest("gamemanager", "gameMigrationFailure");
-                transaction.Error = "timeout";
-                SendTransaction(player.UserId, transaction);
-            }
-
-            _playerMigrationGroups.RemoveAt(i--);
         }
-
-        _playerLock.Release();
     }
 
     private void ClearExpiredReservations()
     {
-        _playerLock.Wait();
-        
-        int time = TimeHelper.LocalTime;
-        foreach ((string? key, ReservationGroup group) in _reservationGroups.ToList())
+        lock (_playerLock)
         {
-            if (time <= group.Timestamp + ReservationTimeout) continue;
-            
-            while (group.Slots.TryDequeue(out int slot))
-                group.Room.FreeSlot(slot);
-            _reservationGroups.Remove(key);
+            int time = TimeHelper.LocalTime;
+            foreach ((string? key, ReservationGroup group) in _reservationGroups.ToList())
+            {
+                if (time <= group.Timestamp + ReservationTimeout) continue;
+
+                while (group.Slots.TryDequeue(out int slot))
+                    group.Room.FreeSlot(slot);
+                _reservationGroups.Remove(key);
+            }
         }
-        
-        _playerLock.Release();
     }
 
     protected override void OnGamedata(ConnectionBase connection, ArraySegment<byte> data)
