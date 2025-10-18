@@ -1,3 +1,4 @@
+using System.Numerics;
 using Bombd.Extensions;
 using Bombd.Globals;
 using Bombd.Helpers;
@@ -125,7 +126,7 @@ public class SimServer
 
     private void SwitchAllToRacers()
     {
-        foreach (GamePlayer player in _players)
+        foreach (GamePlayer player in _players.Where(x => x.State.Away == 0))
             player.IsSpectator = false;
         foreach (PlayerInfo info in _playerInfos)
             info.Operation = PlayerJoinStatus.RacerPending;
@@ -148,6 +149,22 @@ public class SimServer
                 NetMessageType.PlayerSessionInfo);   
         }
         
+        if (RaceState == RaceState.GameroomCountdown)
+            UpdateRaceSetup();
+    }
+
+    private void SwitchToRacer(GamePlayer player)
+    {
+        if (!player.IsSpectator) return;
+
+        player.IsSpectator = false;
+        if (IsKarting) BroadcastSessionInfo();
+        else
+        {
+            Broadcast(new NetMessageSessionInfo(PlayerSessionOperation.SwitchSpectatorToRacer, player.UserId),
+                NetMessageType.PlayerSessionInfo);
+        }
+
         if (RaceState == RaceState.GameroomCountdown)
             UpdateRaceSetup();
     }
@@ -255,8 +272,9 @@ public class SimServer
         if (player.UserId == Owner)
         {
             var random = new Random();
-            int index = random.Next(0, _players.Count);
-            var randomPlayer = _players[index];
+            var availablePlayers = _players.Where(x => x.State.Away == 0).ToArray();
+            int index = random.Next(0, availablePlayers.Length);
+            var randomPlayer = availablePlayers[index];
 
             Owner = randomPlayer.UserId;
             if (_raceSettings != null)
@@ -420,6 +438,8 @@ public class SimServer
             { 
                 BroadcastPlayerState();
                 SwitchAllToRacers();
+                if (_raceSettings != null)
+                    Room.UpdateAttributes(_raceSettings.Value);
                 break;
             }
             case RoomState.RaceInProgress:
@@ -427,6 +447,8 @@ public class SimServer
                 StartEvent();
                 BroadcastSessionInfo();
                 BroadcastPlayerState();
+                if (_raceSettings != null)
+                    Room.UpdateAttributes(_raceSettings.Value);
                 break;
             }
             case RoomState.Ready:
@@ -1437,6 +1459,12 @@ public class SimServer
 
                 // Patch our existing player state with the new message
                 player.State.Update(state);
+
+                // Check if player is away, if they are switch them to spectator so they do not join the race
+                if (player.State.Away != 0)
+                    SwitchToSpectator(player);
+                else
+                    SwitchToRacer(player);
                 
                 // If we're not in a gameroom, there's no GameroomReady event, so wait until we've received
                 // the player config and the second player state update to finish our "connecting" process.
@@ -1694,7 +1722,7 @@ public class SimServer
         if (_raceSettings != null && room.State < RoomState.RaceInProgress)
         {
             int numReadyPlayers =
-                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0);
+                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0 && x.State.Away == 0);
             bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans;
 
             // Karting, series races, and ranked races don't allow the "owner" to start the race

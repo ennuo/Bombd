@@ -37,3 +37,5 @@
     <PossibleValue>kartPark</PossibleValue>
     <PossibleValue>competitive</PossibleValue>
 </SimpleFilter>
+
+<NumberPreference name="IS_LOCKED" range="1.0" weight="1.0" default="0.0"></NumberPreference>
