@@ -369,7 +369,7 @@ public class SimServer
     {
         if (_raceSettings == null) return;
         
-        _votePackage.Value.StartVote(_raceSettings.Value.CreationId);
+        _votePackage.Value.StartVote(_raceSettings.Value.CreationId, _players.Count);
         _votePackage.Sync();
     }
 

@@ -119,9 +119,9 @@ public class WebApiManager
         return coi;
     }
 
-    public static List<int> GetRandomTracks(int currentTrackId)
+    public static List<int> GetRandomTracks(int currentTrackId, int playerCount)
     {
-        string json = MakeRequest($"{BombdConfig.Instance.ApiURL}/api/VotePackage?trackId={currentTrackId}");
+        string json = MakeRequest($"{BombdConfig.Instance.ApiURL}/api/VotePackage?trackId={currentTrackId}&playerCount={playerCount}");
         if (string.IsNullOrEmpty(json)) return Career.Karting.GetVotePackage(currentTrackId);
         
         try

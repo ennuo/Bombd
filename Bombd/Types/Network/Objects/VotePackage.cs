@@ -92,7 +92,7 @@ public class VotePackage : INetworkWritable
         }
     }
     
-    public void StartVote(int replayCreationId)
+    public void StartVote(int replayCreationId, int playerCount)
     {
         _finalizedVotedTrack = -1;
         _state = 1;
@@ -100,10 +100,7 @@ public class VotePackage : INetworkWritable
         int trackIndex = 0;
         _tracks[trackIndex++].Set(replayCreationId);
         
-        List<int> randomTracks = 
-            replayCreationId > NetCreationIdRange.MinOnlineCreationId 
-            ? WebApiManager.GetRandomTracks(replayCreationId) 
-            : Career.Karting.GetVotePackage(replayCreationId);
+        List<int> randomTracks = WebApiManager.GetRandomTracks(replayCreationId, playerCount);
         
         foreach (int track in randomTracks)
             _tracks[trackIndex++].Set(track);
