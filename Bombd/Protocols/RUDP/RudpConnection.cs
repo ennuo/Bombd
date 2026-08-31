@@ -421,7 +421,7 @@ public class RudpConnection : ConnectionBase
             case PacketType.VoipData:
             {
                 RudpMessage msg = _messagePool.Get();
-                msg.EncodeVoipData((uint)TimeHelper.LocalTime, data);
+                msg.EncodeVoipData((uint)TimeHelper.LocalTime, data, Platform);
                 _server.Send(this, msg.GetArraySegment());
                 _messagePool.Return(msg);
                 break;

@@ -89,7 +89,7 @@ public class RudpMessage
         _data.WriteUint16BE(checksumOffset, checksum);
     }
 
-    public void EncodeVoipData(uint sequence, ArraySegment<byte> data)
+    public void EncodeVoipData(uint sequence, ArraySegment<byte> data, Platform platform)
     {
         Protocol = PacketType.VoipData;
         Sequence = sequence;
@@ -99,7 +99,10 @@ public class RudpMessage
         _offset += _data.WriteUint16BE(_offset, 0xffff);
         _offset += _data.WriteUint32BE(_offset, sequence);
         _offset += _data.WriteUint32BE(_offset, 0);
-        _offset += _data.WriteUint32BE(_offset, 0);
+        
+        if (platform == Platform.ModNation)
+            _offset += _data.WriteUint32BE(_offset, 0);
+        
         _offset += _data.Write(_offset, data);
     }
 
