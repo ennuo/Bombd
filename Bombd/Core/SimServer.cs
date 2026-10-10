@@ -436,6 +436,13 @@ public class SimServer
         var oldState = room.State;
         if (state == oldState) return;
 
+        // trying to emulate original server's 6th state
+        if (state == RoomState.RaceInProgress && IsModNation && _raceSettings != null)
+        {
+            AssignRandomNis(_raceSettings.Value);
+            TriggerRaceEventSync(EventUpdateReason.RaceStarting);
+        }
+
         if (IsModNation && !IsRanked)
         {
             if (state > RoomState.Ready && state != RoomState.CountingDown)
@@ -528,12 +535,7 @@ public class SimServer
         Logger.LogInfo<SimServer>($"GameroomState {oldState} -> {state}: start in {(room.LoadEventTime - TimeHelper.LocalTime) / 1000.0:0.0}s, timerLock={room.LockedTimerValue}, racerLock={room.LockedForRacerJoinsValue}, players={_players.Count}, ready={_players.Count(p => (p.State.Flags & PlayerStateFlags.GameRoomReady) != 0)}");
         _gameroomState.Sync();
         
-        // trying to emulate original server's 6th state
-        if (state == RoomState.DownloadingTracks && IsModNation && _raceSettings != null)
-        {
-            AssignRandomNis(_raceSettings.Value);
-            TriggerRaceEventSync(EventUpdateReason.RaceStarting);
-        }
+        
     }
     
     private GenericSyncObject<T> CreateSystemSyncObject<T>(T instance, NetObjectTypeInfo typeInfo) where T : INetworkWritable
