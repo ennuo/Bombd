@@ -89,6 +89,7 @@ public class SimServer
         _arbitrationServer = new NetArbitrationServer(OnReleaseArbitratedItem);
         
         Logger.LogInfo<SimServer>($"Starting SimServer ({Type}:{Platform}, IsRanked = {isRanked}, IsSeries = {isSeries})");
+        Logger.LogInfo<SimServer>($"SimServer UID is 0x{NetworkMessages.SimServerUid:x8}"); // temporary
         
         if (Type == ServerType.KartPark)
         {

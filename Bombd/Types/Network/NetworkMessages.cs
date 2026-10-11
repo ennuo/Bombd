@@ -6,7 +6,7 @@ namespace Bombd.Types.Network;
 
 public class NetworkMessages
 {
-    public const string SimServerName = "SimServer";
+    public const string SimServerName = "simserver"; //changed to all lowercase to emulate original server, shot in the dark for NIS
     private const int HeaderSize = 0x8;
     public static readonly uint SimServerUid = CryptoHelper.StringHashU32(SimServerName);
     
