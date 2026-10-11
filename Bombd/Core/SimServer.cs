@@ -176,18 +176,18 @@ public class SimServer
 
         BroadcastSessionInfo();
         BroadcastPlayerState();
-        }
+    }
 
     private void SwitchAllToRacers()
     {
-        foreach (GamePlayer player in _players)
+        foreach (GamePlayer player in _players.Where(player => player.IsSpectator))
+        {
             player.IsSpectator = false;
-        foreach (PlayerInfo info in _playerInfos)
-            info.Operation = PlayerJoinStatus.RacerPending;
-        
-        if (IsModNation)
-            Broadcast(new NetMessageSessionInfo(PlayerSessionOperation.SwitchAllToRacer), NetMessageType.PlayerSessionInfo);
-        else
+            if (IsModNation)
+                Broadcast(new NetMessageSessionInfo(PlayerSessionOperation.SwitchSpectatorToRacer, player.UserId), NetMessageType.PlayerSessionInfo);
+        }
+
+        if (IsKarting)
             BroadcastSessionInfo();
     }
 
@@ -586,7 +586,7 @@ public class SimServer
 
         _startingGrid.Value.Clear();
         var racers = _players
-        .Where(player => player.State.HasNameUid)
+        .Where(player => player.State.HasNameUid && !player.IsSpectator)
         .OrderBy(player => GetGridOrder(player.UserId));
 
         foreach (GamePlayer player in racers)
@@ -603,7 +603,10 @@ public class SimServer
         
         // AI are owned by players, if one player disconnects, their AI is destroyed,
         // so distribute them between all players
-        List<string> playerNames = _players.Select(player => player.Username).ToList();
+        List<string> playerNames = _players
+        .Where(player => !player.IsSpectator)
+        .Select(player => player.Username).ToList();
+
         _aiInfo.Value = _raceSettings.Value.AiEnabled ? 
             new AiInfo(Platform, playerNames, numAi) : new AiInfo(Platform);
 
@@ -1844,7 +1847,7 @@ public class SimServer
         if (_raceSettings != null && room.State < RoomState.RaceInProgress)
         {
             int numReadyPlayers =
-                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0);
+                _players.Count(x => (x.State.Flags & PlayerStateFlags.GameRoomReady) != 0 && x.State.Away == 0);
             bool hasMinPlayers = numReadyPlayers >= _raceSettings.Value.MinHumans;
 
             // Karting, series races, and ranked races don't allow the "owner" to start the race
@@ -2036,6 +2039,7 @@ public class SimServer
                                 {
                                     Logger.LogDebug<SimServer>("Resetting GameRoom state for next race!");
 
+                                    // TODO: This triggers an "Event Settings Changed" message
                                     if (_raceSettings != null)
                                     {
                                         AssignRandomNis(_raceSettings.Value);
