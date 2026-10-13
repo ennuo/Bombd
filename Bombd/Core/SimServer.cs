@@ -89,7 +89,7 @@ public class SimServer
         _arbitrationServer = new NetArbitrationServer(OnReleaseArbitratedItem);
         
         Logger.LogInfo<SimServer>($"Starting SimServer ({Type}:{Platform}, IsRanked = {isRanked}, IsSeries = {isSeries})");
-        Logger.LogInfo<SimServer>($"SimServer UID is 0x{NetworkMessages.SimServerUid:x8}"); // temporary
+        //Logger.LogInfo<SimServer>($"SimServer UID is 0x{NetworkMessages.SimServerUid:x8}");
         
         if (Type == ServerType.KartPark)
         {
@@ -154,7 +154,7 @@ public class SimServer
     {
         Owner = newOwner;
         _lastOwnerChange = DateTime.UtcNow;
-        _leaderVetoes.Clear(); // votes were against the old host
+        ClearLeaderVetoes(); // votes were against the old host
         Logger.LogInfo<SimServer>($"Host changed to {newOwner}");
 
         // Hide the leader veto for the cooldown
@@ -176,6 +176,20 @@ public class SimServer
 
         BroadcastSessionInfo();
         BroadcastPlayerState();
+    }
+
+    private void ClearLeaderVetoes()
+    {
+        _leaderVetoes.Clear();
+        bool changed = false;
+        foreach (var p in _players)
+        {
+            if (!p.State.HasLeaderVetoed) continue;
+            p.State.HasLeaderVetoed = false;
+            changed = true;
+        }
+
+        if (changed) BroadcastPlayerState();
     }
 
     private void SwitchAllToRacers()
@@ -449,7 +463,7 @@ public class SimServer
             if (state > RoomState.Ready && state != RoomState.CountingDown)
             {
                 room.IsLeaderVetoAvailable = false;
-                _leaderVetoes.Clear();
+                ClearLeaderVetoes();
             }
 
             if (state == RoomState.RaceInProgress)
@@ -1237,6 +1251,7 @@ public class SimServer
                     player.State.HasEventVetoed) break;
                 
                 player.State.HasEventVetoed = true;
+                BroadcastPlayerState();
                 if (_players.All(p => p.State.HasEventVetoed))
                 {
                     _gameroomState.Value.HasEventVetoOccured = true;
@@ -1266,6 +1281,8 @@ public class SimServer
                 if (Type != ServerType.Competitive || _raceSettings == null || !LeaderVetoAllowedNow(_gameroomState.Value)) break;
 
                 if (player.UserId == Owner || !_leaderVetoes.Add(player.UserId)) break;
+                player.State.HasLeaderVetoed = true;
+                BroadcastPlayerState();
 
                 Broadcast((int)player.State.NameUid, NetMessageType.GameroomLeaderVeto);
 
@@ -1867,7 +1884,7 @@ public class SimServer
             if (room.IsLeaderVetoAvailable != vetoAllowed)
             {
                 room.IsLeaderVetoAvailable = vetoAllowed;
-                if (!vetoAllowed) _leaderVetoes.Clear();
+                if (!vetoAllowed) ClearLeaderVetoes();
                 _gameroomState.Sync();
             }
         }
@@ -1973,6 +1990,7 @@ public class SimServer
                                 if (nextSeriesIndex < events.Count)
                                 {
                                     var nextEvent = events[nextSeriesIndex];
+                                    AssignRandomNis(nextEvent);           // pick this race's intro before it's sent, see if this fixes XP series desync
                                     _raceSettings.Value = nextEvent;
                                     Room.UpdateAttributes(nextEvent);
                                     _destination = Destination.NextSeriesRace;
@@ -2072,9 +2090,11 @@ public class SimServer
                                             nextSettings = Career.ModNation.GetRankedEvent(Owner, _raceSettings.Value.CreationId);
                                         }
 
-                                        // trying to reset vetos so that they dont carry over per lobby (intended?)
                                         foreach (var p in _players)
-                                        p.State.HasEventVetoed = false;
+                                        {
+                                            p.State.HasEventVetoed = false;
+                                        }
+                                        BroadcastPlayerState();
                                         _gameroomState.Value.HasEventVetoOccured = false;
                                         _gameroomState.Sync();
 

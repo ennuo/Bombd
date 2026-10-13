@@ -6,10 +6,9 @@ namespace Bombd.Types.Network;
 
 public class NetworkMessages
 {
-    public const string SimServerName = "simserver"; //changed to all lowercase to emulate original server, shot in the dark for NIS
+    public const string SimServerName = "SimServer";
     private const int HeaderSize = 0x8;
-    // The original server's ID
-    public static readonly uint SimServerUid = 0x4e14793e;
+    public static readonly uint SimServerUid = CryptoHelper.StringHashU32(SimServerName); // 0x4e14793e was from original server, can manually write this instead if needed, doesn't seem to be
     
     public static ArraySegment<byte> Pack(NetworkWriter writer, INetworkWritable message, NetMessageType type)
     {

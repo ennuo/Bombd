@@ -104,8 +104,7 @@ public class EventSettings : INetworkReadable, INetworkWritable
             UpdateReason = (EventUpdateReason)reader.ReadInt32();
             KartParkHome = reader.ReadString(0x40);
             TranslatedTrackName = reader.ReadString(0x40);
-            NisName = reader.ReadString(0x38); // intro (NIS) name
-            reader.Offset += 8;                // always set by the server below
+            NisName = reader.ReadString(0x40); // intro (NIS) name which is always overwritten and sent out by the server, but keeping here for symmetry
             
             return;
         }
@@ -136,18 +135,18 @@ public class EventSettings : INetworkReadable, INetworkWritable
             int start = writer.Offset; //temp
             writer.Write(TrackName, 0x40);
             writer.Write(CreationId); // 0x40
-            writer.Write(1); // - PlayerCount or something?
+            writer.Write(1); // - PlayerCount or something? 0x48
             writer.Write(1); // - Unknown 0x48
             writer.Write(NumLaps); // 0x4c
             writer.Write((int)KartSpeed); // 0x50
             writer.Write((int)RaceType); // 0x54
             writer.Write(0); // - Unknown 0x58
-            writer.Write(AiEnabled ? 1 : 0); // 0x5v
+            writer.Write(AiEnabled ? 1 : 0); // 0x5c
             writer.Write(AutoReset ? 1 : 0); // 0x60 - auto reset
             writer.Write(OwnerNetcodeUserId); // (0x64)
 
             writer.Write(IsRanked ? 1 : 0); // 0x68
-            writer.Write(Private ? 1 : 0); // 0x6v
+            writer.Write(Private ? 1 : 0); // 0x6C
             writer.Write(CareerEventIndex); // 0x70
             writer.Write(SeriesEventIndex); // 0x74
             writer.Write(0); // 0x78
@@ -159,9 +158,8 @@ public class EventSettings : INetworkReadable, INetworkWritable
             writer.Write(KartParkHome, 0x40); // 0x8c
             writer.Write(TranslatedTrackName, 0x40); // 0xcc
             Logger.LogInfo<EventSettings>($"Writing NIS '{NisName}' at offset 0x{writer.Offset - start:X}, track {CreationId}, reason {UpdateReason}, ranked {IsRanked}");
-            writer.Write(NisName, 0x38); // 0x10c - intro (NIS) name which the server picks and sends to the clients
-            writer.Write(1);             // 0x144 this was always 1 in original server
-            writer.Write(0);             // 0x148
+            writer.Write(NisName, 0x40); // 0x10c - intro (NIS) name which the server picks and sends to the clients
+                                        // 0x14c end of settings
 
             return;
         }
