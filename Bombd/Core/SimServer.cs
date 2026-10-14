@@ -520,6 +520,16 @@ public class SimServer
             case RoomState.CountingDownPaused:
             {
                 RaceState = RaceState.GameroomCountdown;
+                if (_pausedTimeRemaining > _raceConstants.GameRoomTimerLock)
+                {
+                    room.LoadEventTime = TimeHelper.LocalTime + (int)_pausedTimeRemaining + 60_000;
+                    room.LockedTimerValue = 0.0f;
+                }
+                else
+                {
+                    room.LoadEventTime = TimeHelper.LocalTime;
+                    room.LockedTimerValue = _raceConstants.GameRoomTimerLock;
+                }
                 break;
             }
             case RoomState.CountingDown:
@@ -1503,7 +1513,7 @@ public class SimServer
                 settings.IsRanked = IsRanked;
                 
                 // Can't limit to less people than we actually have
-                if (settings.MaxHumans < _players.Count)
+                if (settings.MaxHumans < Room.UsedSlots)
                     break;
 
                 // We don't know if we're doing a top tracks race until the host sends the
@@ -1990,7 +2000,7 @@ public class SimServer
                                 if (nextSeriesIndex < events.Count)
                                 {
                                     var nextEvent = events[nextSeriesIndex];
-                                    AssignRandomNis(nextEvent);           // pick this race's intro before it's sent, see if this fixes XP series desync
+                                    AssignRandomNis(nextEvent);           
                                     _raceSettings.Value = nextEvent;
                                     Room.UpdateAttributes(nextEvent);
                                     _destination = Destination.NextSeriesRace;
@@ -2001,7 +2011,9 @@ public class SimServer
                             
                             Logger.LogDebug<SimServer>($"{Room.Game.GameName} race has been completed, destination is {_destination}");
                             
-                            int postRaceDelay = _raceConstants.PostRaceTime;
+                            int postRaceDelay = _destination == Destination.NextSeriesRace && _raceConstants.SeriesPostRaceTime > 0
+                                ? _raceConstants.SeriesPostRaceTime
+                                : _raceConstants.PostRaceTime;            // adding a clause for XP series since it used a longer post race timer
                             RaceState = RaceState.PostRace;
                             _raceStateEndTime = TimeHelper.LocalTime + postRaceDelay;
                             var message = new NetMessageEventResults(Platform)
@@ -2010,7 +2022,7 @@ public class SimServer
                                 ResultsXml = results,
                                 Destination = _seriesInfo != null ? Destination.PostSeries : _destination,
                                 PostEventDelayTime = _raceStateEndTime,
-                                PostEventScreenTime = postRaceDelay
+                                PostEventScreenTime = postRaceDelay / 1000f   // emulating the original as much as possible, worked before without / 1000f but worth adding for posterity
                             };
                             
                             Broadcast(message, NetMessageType.EventResultsFinal);
