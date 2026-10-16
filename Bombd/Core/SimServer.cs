@@ -331,9 +331,15 @@ public class SimServer
         // If we're the owner, change the host to someone random
         if (player.UserId == Owner)
         {
-            var candidates = _players.Where(p => p.State.Away == 0).ToList();
+            IEnumerable<GamePlayer> pool = _players;
+            bool raceRunning = RaceState >= RaceState.LoadingIntoRace;
+            if (raceRunning && _players.Any(p => !p.IsSpectator))
+                pool = _players.Where(p => !p.IsSpectator);
+
+            // Prefer players who aren't away
+            var candidates = pool.Where(p => p.State.Away == 0).ToList();
             if (candidates.Count == 0)
-                candidates = _players;   // failsafe in case everyone is away
+                candidates = pool.ToList();   // failsafe in case everyone is away
 
             var newOwner = candidates[Random.Shared.Next(candidates.Count)];
             ChangeOwner(newOwner.UserId);
