@@ -138,7 +138,7 @@ public class SimServer
     private bool LeaderVetoAllowedNow(GameroomState room)
     {
         if (!IsModNation || IsRanked || Type != ServerType.Competitive) return false;
-        if (_players.Count < MinPlayersForLeaderVeto) return false;
+        if (_players.Count(p => p.State.Away == 0) < MinPlayersForLeaderVeto) return false;
         if (_leaderVetoesPassed >= MaxLeaderVetoesPerRace) return false;
         if (DateTime.UtcNow - _lastOwnerChange < LeaderVetoCooldown) return false;
 
@@ -153,6 +153,8 @@ public class SimServer
     private void ChangeOwner(int newOwner)
     {
         Owner = newOwner;
+        if (_playerLookup.TryGetValue(newOwner, out GamePlayer? ownerPlayer) && ownerPlayer.State.Away != 0)
+            ownerPlayer.State.Away = 0;
         _lastOwnerChange = DateTime.UtcNow;
         ClearLeaderVetoes(); // votes were against the old host
         Logger.LogInfo<SimServer>($"Host changed to {newOwner}");
@@ -189,7 +191,11 @@ public class SimServer
             changed = true;
         }
 
-        if (changed) BroadcastPlayerState();
+        if (changed)
+        {
+            Logger.LogInfo<SimServer>("Leader vetoes cleared");
+            BroadcastPlayerState();
+        }
     }
 
     private void SwitchAllToRacers()
@@ -325,8 +331,12 @@ public class SimServer
         // If we're the owner, change the host to someone random
         if (player.UserId == Owner)
         {
-            var randomPlayer = _players[Random.Shared.Next(_players.Count)];
-            ChangeOwner(randomPlayer.UserId);
+            var candidates = _players.Where(p => p.State.Away == 0).ToList();
+            if (candidates.Count == 0)
+                candidates = _players;   // failsafe in case everyone is away
+
+            var newOwner = candidates[Random.Shared.Next(candidates.Count)];
+            ChangeOwner(newOwner.UserId);
         }
     }
 
@@ -1166,7 +1176,7 @@ public class SimServer
                 }
                 
                 GamePlayer? target = _players.FirstOrDefault(target => target.State.NameUid == request.Target);
-                if (target != null)
+                if (target != null && target.State.Away == 0)
                 {
                     ChangeOwner(target.UserId);
                 }
@@ -1296,7 +1306,7 @@ public class SimServer
 
                 Broadcast((int)player.State.NameUid, NetMessageType.GameroomLeaderVeto);
 
-                var voters = _players.Where(p => p.UserId != Owner).ToList();
+                var voters = _players.Where(p => p.UserId != Owner && p.State.Away == 0).ToList();
                 if (voters.Count > 0 && voters.All(p => _leaderVetoes.Contains(p.UserId)))
                 {
                     if (_gameroomState.Value.State == RoomState.CountingDown)
@@ -1350,6 +1360,7 @@ public class SimServer
             {
                 // Only the host should be allowed to start the event I'm fairly sure
                 if (player.UserId != Owner || Type != ServerType.Competitive || RaceState != RaceState.Invalid) break;
+                if (_gameroomState.Value.State != RoomState.Ready) break; // Only start when the room is ready, this should disallow a lobby with one ready one away to start and win farm.
                 SetCurrentGameroomState(RoomState.DownloadingTracks);
                 break;
             }
@@ -2011,9 +2022,9 @@ public class SimServer
                             
                             Logger.LogDebug<SimServer>($"{Room.Game.GameName} race has been completed, destination is {_destination}");
                             
-                            int postRaceDelay = _destination == Destination.NextSeriesRace && _raceConstants.SeriesPostRaceTime > 0
+                            int postRaceDelay = _seriesInfo != null && _raceConstants.SeriesPostRaceTime > 0
                                 ? _raceConstants.SeriesPostRaceTime
-                                : _raceConstants.PostRaceTime;            // adding a clause for XP series since it used a longer post race timer
+                                : _raceConstants.PostRaceTime;             // adding a clause for XP series since it used a longer post race timer
                             RaceState = RaceState.PostRace;
                             _raceStateEndTime = TimeHelper.LocalTime + postRaceDelay;
                             var message = new NetMessageEventResults(Platform)
