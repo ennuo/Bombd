@@ -1333,6 +1333,8 @@ public class SimServer
                 try
                 {
                     _spectatorInfo.Value = SpectatorInfo.ReadVersioned(data, Platform);
+                    var s = _spectatorInfo.Value;
+                    Logger.LogInfo<SimServer>($"SpectatorInfo: phase={s.RaceState}, raceEnd={s.RaceEndServerTime}, postRace={s.PostRaceServerTime}, now={TimeHelper.LocalTime}, server={RaceState}");
                 }
                 catch (Exception)
                 {
