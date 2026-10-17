@@ -8,7 +8,7 @@ public class NetworkMessages
 {
     public const string SimServerName = "SimServer";
     private const int HeaderSize = 0x8;
-    public static readonly uint SimServerUid = CryptoHelper.StringHashU32(SimServerName);
+    public static readonly uint SimServerUid = CryptoHelper.StringHashU32(SimServerName); // 0x4e14793e was from original server, can manually write this instead if needed, doesn't seem to be
     
     public static ArraySegment<byte> Pack(NetworkWriter writer, INetworkWritable message, NetMessageType type)
     {

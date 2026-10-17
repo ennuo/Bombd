@@ -1,10 +1,17 @@
 {
-  "profiles": {
-    "Bombd": {
-      "commandName": "Project"
-    },
-    "Docker": {
-      "commandName": "Docker"
+    "profiles": {
+        "Bombd": {
+            "commandName": "Project"
+        },
+        "Docker": {
+            "commandName": "Docker"
+        },
+        "WSL": {
+            "commandName": "WSL2",
+            "environmentVariables": {
+                "LD_LIBRARY_PATH": "/usr/local/lib64:/usr/local/lib:/usr/lib",
+                "OPENSSL_CONF": "/etc/ssl/openssl.cnf"
+            }
+        }
     }
-  }
 }
