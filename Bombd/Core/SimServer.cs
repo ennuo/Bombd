@@ -132,6 +132,9 @@ public class SimServer
         
         var state = player.State;
         if (Type != ServerType.Competitive) return !state.IsConnecting;
+
+        if (RaceState >= RaceState.LoadingIntoRace) return !state.IsConnecting; // fix for invites/friend list join getting stuck waiting for room to be ready to join instead of just entering like matchmaking
+
         return !state.IsConnecting && (state.Flags & PlayerStateFlags.GameRoomReady) != 0;
     }
 

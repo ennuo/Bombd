@@ -277,8 +277,12 @@ public class GameServer : BombdService
                 PlayerJoinRequest request = _playerJoinQueue[i];
                 if (TimeHelper.LocalTime > request.Timestamp + JoinTimeout)
                 {
-                    Logger.LogWarning<GameServer>(
-                        "A player took too long to join and was disconnected!");
+                    GameRoom? targetRoom = Bombd.RoomManager.GetRoomByName(request.GameName);
+                    bool roomReady = targetRoom != null && targetRoom.IsReadyToJoin(request.UserId);
+                    bool hasConnection = UserInfo.TryGetValue(request.UserId, out ConnectionBase? waitingConnection);
+                    bool authenticated = hasConnection && waitingConnection!.IsAuthenticated;
+                    Logger.LogWarning<GameServer>($"{request.Username} took too long to join {request.GameName} and was disconnected! " +
+                    $"(room exists={targetRoom != null}, room ready={roomReady}, connection={hasConnection}, authenticated={authenticated})");
                     _playerJoinQueue.RemoveAt(i--);
                     if (UserInfo.TryGetValue(request.UserId, out ConnectionBase? pendingConnection))
                         pendingConnection.Disconnect();
