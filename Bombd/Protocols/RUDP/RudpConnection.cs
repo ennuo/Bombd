@@ -46,6 +46,7 @@ public class RudpConnection : ConnectionBase
     private uint _remoteGamedataSequence;
     private uint _remoteSequence;
     private int _secret;
+    private uint _lastBacklogLog; // logging to see why many players joining a modspot at once causes drops
     
     public RudpConnection(EndPoint endpoint, BombdService service, RudpServer server) : base(service, server)
     {
@@ -371,13 +372,20 @@ public class RudpConnection : ConnectionBase
             return;
         }
 
+        int resent = 0;
         foreach (RudpMessage message in _sendBuffer)
         {
             if (time - message.Timestamp < ResendTime) continue;
-            
-            
+    
             message.Timestamp = time;
             _server.Send(this, message.GetArraySegment());
+            resent++;
+        }
+
+        if (_sendBuffer.Count >= 32 && time - _lastBacklogLog >= 2000)
+        {
+            _lastBacklogLog = time;
+            Logger.LogWarning<RudpConnection>($"{Endpoint}: {_sendBuffer.Count} reliable packets waiting for ack, {resent} resent this update");
         }
 
         if (_ackList.Count > 0)
