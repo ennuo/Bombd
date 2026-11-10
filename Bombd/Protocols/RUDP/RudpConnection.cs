@@ -77,6 +77,7 @@ public class RudpConnection : ConnectionBase
     private uint _lastDiagnosticsLog;
     private int _resendsSinceLog;
     private int _reorderedSinceLog;
+    private int _spuriousSinceLog;
     
     public RudpConnection(EndPoint endpoint, BombdService service, RudpServer server) : base(service, server)
     {
@@ -282,16 +283,25 @@ public class RudpConnection : ConnectionBase
         if (index < 0) return;
 
         RudpMessage acked = _sendBuffer[index];
+        uint now = (uint)TimeHelper.LocalTime;
 
         if (acked.SendCount == 1)
-            UpdateRoundTripTime((uint)TimeHelper.LocalTime - acked.FirstSendTime);
-
-        _backoff = 0;
+        {
+            // Sent once: an unambiguous round trip
+            UpdateRoundTripTime(now - acked.FirstSendTime);
+            _backoff = 0;
+        }
+        else if (_hasRttSample && now - acked.Timestamp < _smoothedRtt / 2)
+        {
+            UpdateRoundTripTime(now - acked.FirstSendTime);
+            _spuriousSinceLog++;
+            _backoff = 0;
+        }
+        // Otherwise it was a real loss, recovered by the resend: keep the backoff until a clean measurement arrives
 
         _sendBuffer.RemoveAt(index);
         _messagePool.Return(acked);
     }
-
     private void ReceiveReliable(ArraySegment<byte> data, PacketType protocol, uint sequence)
     {
         bool isGamedata = protocol == PacketType.ReliableGameData;
@@ -515,7 +525,8 @@ public class RudpConnection : ConnectionBase
             _smoothedRtt = 0.875f * _smoothedRtt + 0.125f * sample;
         }
         
-        _resendTimeout = Math.Clamp((int)(_smoothedRtt + 4 * _rttVariance), MinResendTime, MaxResendTime);
+        float rto = _smoothedRtt + Math.Max(4 * _rttVariance, 200f);
+        _resendTimeout = Math.Clamp((int)rto, MinResendTime, MaxResendTime);
     }
 
     private void FillSendWindow()
@@ -597,17 +608,19 @@ public class RudpConnection : ConnectionBase
 
     private void LogDiagnostics(uint time)
     {
-        if (_resendsSinceLog == 0 && _reorderedSinceLog == 0) return;
+        if (_resendsSinceLog == 0 && _reorderedSinceLog == 0 && _spuriousSinceLog == 0) return;
         if (time - _lastDiagnosticsLog < DiagnosticsInterval) return;
 
         Logger.LogWarning<RudpConnection>(
-            $"{Username} ({Endpoint}): {_resendsSinceLog} resent, {_reorderedSinceLog} received out of order, " +
+            $"{Username} ({Endpoint}): {_resendsSinceLog} resent, {_spuriousSinceLog} unnecessary, " +
+            $"{_reorderedSinceLog} received out of order, " +
             $"{_sendBuffer.Count} in flight, {_pendingSend.Count} queued, rtt {_smoothedRtt:0}ms, " +
             $"timeout {Math.Min(_resendTimeout << _backoff, MaxResendTime)}ms");
 
         _lastDiagnosticsLog = time;
         _resendsSinceLog = 0;
         _reorderedSinceLog = 0;
+        _spuriousSinceLog = 0;
     }
 
     public override void Send(ArraySegment<byte> data, PacketType protocol)

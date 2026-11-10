@@ -2105,11 +2105,11 @@ public class SimServer
                                     Logger.LogDebug<SimServer>("Resetting GameRoom state for next race!");
 
                                     // TODO: This triggers an "Event Settings Changed" message
-                                    if (_raceSettings != null)
-                                    {
-                                        AssignRandomNis(_raceSettings.Value);
-                                        TriggerRaceEventSync(EventUpdateReason.RaceSettingsChanged);
-                                    }
+                                    //if (_raceSettings != null)
+                                    //{
+                                    //    AssignRandomNis(_raceSettings.Value);
+                                    //    TriggerRaceEventSync(EventUpdateReason.RaceSettingsChanged);
+                                    //}
                                     
                                     // Tell spectators that we're connecting back into the lobby
                                     foreach (var racer in racers)
