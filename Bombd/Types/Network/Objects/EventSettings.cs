@@ -157,7 +157,6 @@ public class EventSettings : INetworkReadable, INetworkWritable
         
             writer.Write(KartParkHome, 0x40); // 0x8c
             writer.Write(TranslatedTrackName, 0x40); // 0xcc
-            Logger.LogInfo<EventSettings>($"Writing NIS '{NisName}' at offset 0x{writer.Offset - start:X}, track {CreationId}, reason {UpdateReason}, ranked {IsRanked}");
             writer.Write(NisName, 0x40); // 0x10c - intro (NIS) name which the server picks and sends to the clients
                                         // 0x14c end of settings
 

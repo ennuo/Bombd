@@ -196,7 +196,7 @@ public class SimServer
 
         if (changed)
         {
-            Logger.LogInfo<SimServer>("Leader vetoes cleared");
+            Logger.LogDebug<SimServer>("Leader vetoes cleared.");
             BroadcastPlayerState();
         }
     }
@@ -868,7 +868,7 @@ public class SimServer
     private static void AssignRandomNis(EventSettings settings)
     {
         settings.NisName = OnlineNisNames[Random.Shared.Next(OnlineNisNames.Length)];
-        Logger.LogInfo<SimServer>($"Assigned intro {settings.NisName} for track {settings.CreationId}");
+        Logger.LogDebug<SimServer>($"Assigned intro {settings.NisName} for track {settings.CreationId}");
     }
     
     public void OnNetworkMessage(GamePlayer player, uint senderNameUid, NetMessageType type, ArraySegment<byte> data)
@@ -939,8 +939,8 @@ public class SimServer
                 // ItemHitConfirm gets sent by the player that's being hit, so
                 // we don't have to verify that message.
 
-                if (type is NetMessageType.ItemHitPlayer or NetMessageType.ItemHitConfirm)
-                    Logger.LogInfo<SimServer>($"{type} from {player.Username} at {TimeHelper.LocalTime}: {Convert.ToHexString(data)}"); // send item hit raw data to try and see what it does
+                //if (type is NetMessageType.ItemHitPlayer or NetMessageType.ItemHitConfirm)
+                //    Logger.LogInfo<SimServer>($"{type} from {player.Username} at {TimeHelper.LocalTime}: {Convert.ToHexString(data)}"); // send item hit raw data to try and see what it does
                 
                 Broadcast(data, type, player);
                 break;
@@ -1349,7 +1349,7 @@ public class SimServer
                 {
                     _spectatorInfo.Value = SpectatorInfo.ReadVersioned(data, Platform);
                     var s = _spectatorInfo.Value;
-                    Logger.LogInfo<SimServer>($"SpectatorInfo: phase={s.RaceState}, raceEnd={s.RaceEndServerTime}, postRace={s.PostRaceServerTime}, now={TimeHelper.LocalTime}, server={RaceState}");
+                    // helpful for later issue of xp series spectators seeing weird post race timer values Logger.LogDebug<SimServer>($"SpectatorInfo: phase={s.RaceState}, raceEnd={s.RaceEndServerTime}, postRace={s.PostRaceServerTime}, now={TimeHelper.LocalTime}, server={RaceState}");
                 }
                 catch (Exception)
                 {
@@ -1428,7 +1428,7 @@ public class SimServer
                 //         player.HasFinishedRace = result.PercentComplete >= 1.0f;
                 //         player.Score = result.EventScore;
                 //     }
-                // }
+                // }       come back to this to implement logging and not disconnect anyone just yet
                 //
                 // if (!isValid)
                 // {
@@ -1639,12 +1639,6 @@ public class SimServer
 
                 // Patch our existing player state with the new message
                 player.State.Update(state);
-                // Adding logging to pick up attributes
-                if (state.UnknownAttributes != null)
-                {
-                    foreach (var attr in state.UnknownAttributes)
-                    Logger.LogInfo<SimServer>($"Unmapped PlayerState attribute from {player.Username}: {attr.Name}={attr.Value}");
-                }
                 
                 // If we're not in a gameroom, there's no GameroomReady event, so wait until we've received
                 // the player config and the second player state update to finish our "connecting" process.
@@ -1862,8 +1856,8 @@ public class SimServer
                 break;
         }
 
-         foreach (var s in stats) // More logging to troubleshoot times not saving
-        Logger.LogInfo<SimServer>($"Race result on track {_raceSettings.Value.CreationId}: pcId={s.PlayerConnectId}, finished={s.Finished}, lap={s.BestLapTime}, finish={s.FinishTime}");
+        foreach (var s in stats) // More logging to troubleshoot times not saving
+            Logger.LogDebug<SimServer>($"Race result on track {_raceSettings.Value.CreationId}: pcId={s.PlayerConnectId}, finished={s.Finished}, lap={s.BestLapTime}, finish={s.FinishTime}");
 
         BombdServer.Comms.NotifyEventFinished(_raceSettings.Value.CreationId, stats, IsModNation, gameType, IsRanked);
         

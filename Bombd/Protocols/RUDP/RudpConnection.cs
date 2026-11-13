@@ -430,7 +430,6 @@ public class RudpConnection : ConnectionBase
             offset += buffer.ReadUint16BE(offset, out ushort payloadBytes);
             offset += 2;
             var unreliableMessage = new ArraySegment<byte>(buffer, offset, payloadBytes);
-            CountMessageType(protocol, unreliableMessage);
             Service.OnData(this, unreliableMessage, protocol);
         }
         else if (protocol == PacketType.ReliableGameData)
@@ -471,7 +470,6 @@ public class RudpConnection : ConnectionBase
             if (isGroupComplete)
             {
                 var reliableMessage = new ArraySegment<byte>(_groupBuffer, 0, _groupOffset);
-                CountMessageType(protocol, reliableMessage);
                 Service.OnData(this, reliableMessage, protocol);
                 _groupOffset = 0;
                 _remoteGroupNumber++;
@@ -481,28 +479,8 @@ public class RudpConnection : ConnectionBase
             Logger.LogInfo<RudpConnection>($"Unsupported protocol: {protocol}");
     }
 
-    private static readonly Dictionary<(PacketType, NetMessageType), int> s_messageCounts = new();
+    private static readonly Dictionary<(PacketType, NetMessageType), int> s_messageCounts = new(); // can delete later
     private static long s_lastMessageCountLog;
-
-    private void CountMessageType(PacketType protocol, ArraySegment<byte> message)
-    {
-        using NetworkReaderPooled reader = NetworkReaderPool.Get(message);
-        if (!NetworkMessages.Unpack(reader, Platform, out NetMessageType type, out _, out _)) return;
-
-        lock (s_messageCounts)
-        {
-            s_messageCounts.TryGetValue((protocol, type), out int count);
-            s_messageCounts[(protocol, type)] = count + 1;
-
-            long now = Environment.TickCount64;
-            if (now - s_lastMessageCountLog < 60_000) return;
-            s_lastMessageCountLog = now;
-
-            foreach (var ((channel, messageType), n) in s_messageCounts.OrderByDescending(x => x.Value))
-                Logger.LogInfo<RudpConnection>($"Received in the last minute: {messageType} via {channel}: {n}");
-            s_messageCounts.Clear();
-        }
-    }
 
     private void EnsureGroupCapacity(int value)
     {
@@ -611,7 +589,7 @@ public class RudpConnection : ConnectionBase
         if (_resendsSinceLog == 0 && _reorderedSinceLog == 0 && _spuriousSinceLog == 0) return;
         if (time - _lastDiagnosticsLog < DiagnosticsInterval) return;
 
-        Logger.LogWarning<RudpConnection>(
+        Logger.LogDebug<RudpConnection>(
             $"{Username} ({Endpoint}): {_resendsSinceLog} resent, {_spuriousSinceLog} unnecessary, " +
             $"{_reorderedSinceLog} received out of order, " +
             $"{_sendBuffer.Count} in flight, {_pendingSend.Count} queued, rtt {_smoothedRtt:0}ms, " +
