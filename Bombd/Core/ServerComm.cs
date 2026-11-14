@@ -49,7 +49,7 @@ public sealed class ServerComm : IDisposable
         DispatchEvent(GatewayEvents.EventStarted, new EventStartedEvent
         {
             PlayerIds = playerIds,
-            TrackId = trackId
+            TrackId = trackId,
             IsMNR = isMNR;
         });
     }
