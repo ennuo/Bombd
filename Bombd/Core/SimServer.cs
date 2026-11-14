@@ -467,7 +467,7 @@ public class SimServer
             int trackId = _raceSettings.Value.CreationId;
             List<int> playerIds = _players.Where(player => !player.IsSpectator)
                 .Select(player => player.State.PlayerConnectId).ToList();
-            BombdServer.Comms.NotifyEventStarted(trackId, playerIds);   
+            BombdServer.Comms.NotifyEventStarted(trackId, playerIds, IsModNation);   
         }
     }
     

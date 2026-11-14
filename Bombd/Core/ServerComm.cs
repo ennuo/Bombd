@@ -50,6 +50,7 @@ public sealed class ServerComm : IDisposable
         {
             PlayerIds = playerIds,
             TrackId = trackId
+            IsMNR = isMNR;
         });
     }
 
