@@ -11,7 +11,7 @@ public abstract class ConnectionBase
     public readonly IServer Server;
 
     public readonly BombdService Service;
-    protected ConnectionState State = ConnectionState.Disconnected;
+    public ConnectionState State = ConnectionState.Disconnected;
 
     protected ConnectionBase(BombdService service, IServer server)
     {

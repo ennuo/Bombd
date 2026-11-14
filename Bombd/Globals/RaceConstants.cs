@@ -7,7 +7,7 @@ public class RaceConstants
     public static readonly RaceConstants ModNation = new()
     {
         EventCountdownTime = 5000,
-        GameRoomCountdownTime = 30000,
+        GameRoomCountdownTime = 25000,
         GameRoomTimerRacerLock = 25000,
         GameRoomTimerLock = 20000,
         PostRaceTime = 15000
@@ -19,7 +19,8 @@ public class RaceConstants
         GameRoomCountdownTime = 60000,
         GameRoomTimerRacerLock = 25000,
         GameRoomTimerLock = 20000,
-        PostRaceTime = 30000
+        PostRaceTime = 20000,
+        SeriesPostRaceTime = 40000 // based on video evidence, series waited 40 seconds between each transition 
     };
     
     public static readonly RaceConstants Karting = new()
@@ -56,4 +57,9 @@ public class RaceConstants
     ///     How long the post-race scoreboard and voting lasts in milliseconds
     /// </summary>
     public int PostRaceTime { get; set; }
+
+    /// <summary>
+    ///     How long to wait between races in a series, in milliseconds (0 = use PostRaceTime)
+    /// </summary>
+    public int SeriesPostRaceTime { get; set; }
 }

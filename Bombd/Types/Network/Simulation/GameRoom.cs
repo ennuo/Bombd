@@ -24,8 +24,9 @@ public class GameRoom
     public readonly SimServer Simulation;
     
     public bool IsEmpty => _usedSlots == 0;
-    public bool IsFull => _usedSlots == _maxPlayers;
-    public int NumFreeSlots => _maxPlayers - _usedSlots;
+    public bool IsFull => _usedSlots >= _maxPlayers;
+    public int UsedSlots => _usedSlots;
+    public int NumFreeSlots => Math.Max(0, _maxPlayers - _usedSlots);
     
     private readonly Dictionary<int, GamePlayer> _playerIdLookup = new();
     private readonly List<bool> _slots;

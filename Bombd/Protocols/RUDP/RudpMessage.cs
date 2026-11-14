@@ -10,6 +10,8 @@ public class RudpMessage
     internal PacketType Protocol;
     internal uint Sequence;
     internal uint Timestamp;
+    internal uint FirstSendTime;
+    internal int SendCount;        // new helper variables for rudp
 
     public void EncodeAck(PacketType protocol, uint sequence)
     {
@@ -159,5 +161,7 @@ public class RudpMessage
         _offset = 0;
         Timestamp = 0;
         Sequence = 0;
+        FirstSendTime = 0;
+        SendCount = 0;
     }
 }

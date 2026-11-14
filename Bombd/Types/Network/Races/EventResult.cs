@@ -22,6 +22,7 @@ public class EventResult
     [XmlAttribute("ownerUID")] public uint OwnerUid;
     [XmlAttribute("bestDrift")] public float BestDrift;
     [XmlAttribute("scoreSortOrder")] public string ScoreSortOrder = "ascending";
+    [XmlAnyAttribute] public XmlAttribute[]? UnknownAttributes; // Adding more logging
     [XmlAttribute("bestEventSubScore")] public float BestEventSubScore;
     [XmlAttribute("bestHangTime")] public float BestHangTime;
     [XmlAttribute("eventScore")] public float EventScore;

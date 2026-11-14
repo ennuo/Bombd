@@ -1,5 +1,5 @@
 # Build
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /build
 
 COPY ["Bombd/Bombd.csproj", "Bombd/"]
@@ -8,7 +8,7 @@ COPY . .
 
 RUN dotnet publish Bombd -c Release -o /build/publish/ --no-restore --no-self-contained
 
-FROM mcr.microsoft.com/dotnet/runtime:8.0.0-bookworm-slim AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
 
 # Setup workspace dependencies
 RUN set -eux
@@ -19,7 +19,7 @@ RUN gosu nobody true
 
 
 # Download OpenSSL 
-ENV OPENSSL_VERSION="3.2.0"
+ENV OPENSSL_VERSION="3.5.9"
 RUN wget --quiet --no-check-certificate "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
 RUN tar -xf openssl-${OPENSSL_VERSION}.tar.gz
 RUN rm openssl-${OPENSSL_VERSION}.tar.gz

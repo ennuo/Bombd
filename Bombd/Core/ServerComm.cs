@@ -44,12 +44,13 @@ public sealed class ServerComm : IDisposable
         }
     }
 
-    public void NotifyEventStarted(int trackId, List<int> playerIds)
+    public void NotifyEventStarted(int trackId, List<int> playerIds, bool isMNR)
     {
         DispatchEvent(GatewayEvents.EventStarted, new EventStartedEvent
         {
             PlayerIds = playerIds,
-            TrackId = trackId
+            TrackId = trackId,
+            IsMNR = isMNR
         });
     }
 

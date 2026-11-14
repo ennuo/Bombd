@@ -3,6 +3,8 @@ using Bombd.Core;
 using Bombd.Extensions;
 using Bombd.Helpers;
 using Bombd.Logging;
+using Bombd.Serialization;
+using Bombd.Types.Network;
 using Bombd.Types.Services;
 
 namespace Bombd.Protocols.RUDP;
@@ -19,11 +21,25 @@ public class RudpConnection : ConnectionBase
     // seem to send keep alive packets while the game is loading a level,
     // so disconnections are common with a smaller timeout.
     private const int PacketTimeout = 30_000;
-    
-    private const int ResendTime = 300;
 
     private const int MaxNetcodeSize = 0xFFFF;
     private const int MaxGamedataSize = 0x7FFFFF;
+
+    // Maximum number of packets that can be sent but not acknowledged by one user
+    private const int MaxInFlight = 32;
+
+    private const int InitialResendTime = 300;
+    private const int MinResendTime = 200;
+    private const int MaxResendTime = 3000;
+
+    private const int MaxBackoff = 4;
+
+    private const int MaxReorderAhead = 64;
+
+    private const bool EarlyAcks = false; // test to see if the game can handle True, this would allow certain packets to "skip" the line
+
+    private const int DiagnosticsInterval = 2000; // buffer so logs don't get spammed
+
     
     private readonly List<RudpAckRecord> _ackList = new(16);
 
@@ -32,7 +48,12 @@ public class RudpConnection : ConnectionBase
     private byte[] _groupBuffer = new byte[0x10000]; 
     
     private readonly RudpMessagePool _messagePool = new(32);
+
     private readonly List<RudpMessage> _sendBuffer = new(16);
+    private readonly List<RudpMessage> _pendingSend = new(16);
+
+    private readonly Dictionary<uint, byte[]> _earlyGamedata = new();
+    private readonly Dictionary<uint, byte[]> _earlyNetcode = new();
 
     private readonly RudpServer _server;
     private int _groupOffset;
@@ -46,6 +67,17 @@ public class RudpConnection : ConnectionBase
     private uint _remoteGamedataSequence;
     private uint _remoteSequence;
     private int _secret;
+
+    private float _smoothedRtt;
+    private float _rttVariance;
+    private bool _hasRttSample;
+    private int _resendTimeout = InitialResendTime;
+    private int _backoff;
+
+    private uint _lastDiagnosticsLog;
+    private int _resendsSinceLog;
+    private int _reorderedSinceLog;
+    private int _spuriousSinceLog;
     
     public RudpConnection(EndPoint endpoint, BombdService service, RudpServer server) : base(service, server)
     {
@@ -160,91 +192,183 @@ public class RudpConnection : ConnectionBase
 
         if (State == ConnectionState.WaitingForHandshake)
         {
-            if (protocol != PacketType.Handshake)
-            {
-                Logger.LogInfo<RudpConnection>($"Expected handshake packet, instead got {protocol}. Disconnecting.");
-                Disconnect();
-                return;
-            }
-
-            offset += 1 + 2;
-            offset += buffer.ReadUint32BE(offset, out uint sequence);
-            offset += buffer.ReadInt32BE(offset, out int sessionId);
-            offset += buffer.ReadInt32BE(offset, out int secretNum);
-            offset += buffer.ReadUint32BE(offset, out uint gamedataSequence);
-
-            _remoteSequence = sequence + 1;
-            SessionId = sessionId;
-            _secret = secretNum;
-            _remoteGamedataSequence = gamedataSequence;
-
-            Session? session = BombdServer.Instance.SessionManager.Get(this);
-            if (session == null)
-            {
-                Logger.LogInfo<RudpConnection>("Got invalid session id. Disconnecting.");
-                Disconnect();
-                return;
-            }
-
-            HashSalt = session.HashSalt;
-            if (!VerifyChecksum16(data, 2))
-            {
-                Logger.LogInfo<RudpConnection>("Handshake packet checksum failed. Disconnecting.");
-                Disconnect();
-                return;
-            }
-            
-            RudpMessage msg = _messagePool.Get();
-            msg.EncodeHandshake(sessionId, _secret, HashSalt);
-            _sendBuffer.Add(msg);
-
-            _ackList.Add(new RudpAckRecord { Protocol = protocol, SequenceNumber = sequence });
-
-            Logger.LogDebug<RudpConnection>("Player has connected!");
-            
-            State = ConnectionState.WaitingForConnection;
+            HandleHandshake(data, buffer, offset, protocol);
             return;
         }
         
-        // This whole block is for handling acknowledgements and packet order.
-        if (protocol != PacketType.UnreliableGameData)
+        if (protocol == PacketType.UnreliableGameData)
         {
-            buffer.ReadUint32BE(offset + 3, out uint sequence);
-            if (protocol == PacketType.Ack)
-            {
-                var ackingProtocol = (PacketType)buffer[offset];
-                int index = _sendBuffer.FindIndex(x => x.Sequence == sequence && x.Protocol == ackingProtocol);
-                if (index >= 0) _sendBuffer.RemoveAt(index);
-                return;
-            }
+            ProcessPacket(data);
+            return;
+        }
 
-            // We only need to acknowledge KeepAlive packets, so just stop here.
-            if (protocol == PacketType.KeepAlive)
-            {
-                _ackList.Add(new RudpAckRecord { Protocol = protocol, SequenceNumber = sequence });
-                return;
-            }
+        buffer.ReadUint32BE(offset + 3, out uint sequence);
 
-            // Make sure Gamedata/Netcode messages are in-order, if they aren't, drop them so we don't end up
-            // handling packets twice or in the wrong order.
-            // keepalive doesn't follow a normal sequence number, it's just whatever the current timestamp is.
-            if (State != ConnectionState.WaitingForHandshake)
-            {
-                if (protocol == PacketType.ReliableGameData)
-                {
-                    if (sequence <= _remoteGamedataSequence) _ackList.Add(new RudpAckRecord { Protocol = protocol, SequenceNumber = sequence });
-                    if (sequence != _remoteGamedataSequence) return;
-                    _remoteGamedataSequence++;
-                }
-                else
-                {
-                    if (sequence <= _remoteSequence) _ackList.Add(new RudpAckRecord { Protocol = protocol, SequenceNumber = sequence });
-                    if (sequence != _remoteSequence) return;
-                    _remoteSequence++;
-                }
-            }
+        if (protocol == PacketType.Ack)
+        {
+            HandleAck((PacketType)buffer[offset], sequence);
+            return;
+        }
+
+        // We only need to acknowledge KeepAlive packets, so just stop here.
+        // keepalive doesn't follow a normal sequence number, it's just whatever the current timestamp is.
+        if (protocol == PacketType.KeepAlive)
+        {
+            QueueAck(protocol, sequence);
+            return;
+        }
+
+        if (protocol is PacketType.ReliableGameData or PacketType.ReliableNetcodeData)
+        {
+            ReceiveReliable(data, protocol, sequence);
+            return;
+        }
+
+        if (sequence <= _remoteSequence) QueueAck(protocol, sequence);
+        if (sequence != _remoteSequence) return;
+        _remoteSequence++;
+        ProcessPacket(data);
+    }
+
+    private void HandleHandshake(ArraySegment<byte> data, byte[] buffer, int offset, PacketType protocol)
+    {
+        if (protocol != PacketType.Handshake)
+        {
+            Logger.LogInfo<RudpConnection>($"Expected handshake packet, instead got {protocol}. Disconnecting.");
+            Disconnect();
+            return;
+        }
+
+        offset += 1 + 2;
+        offset += buffer.ReadUint32BE(offset, out uint sequence);
+        offset += buffer.ReadInt32BE(offset, out int sessionId);
+        offset += buffer.ReadInt32BE(offset, out int secretNum);
+        offset += buffer.ReadUint32BE(offset, out uint gamedataSequence);
+
+        _remoteSequence = sequence + 1;
+        SessionId = sessionId;
+        _secret = secretNum;
+        _remoteGamedataSequence = gamedataSequence;
+
+        Session? session = BombdServer.Instance.SessionManager.Get(this);
+        if (session == null)
+        {
+            Logger.LogInfo<RudpConnection>("Got invalid session id. Disconnecting.");
+            Disconnect();
+            return;
+        }
+
+        HashSalt = session.HashSalt;
+        if (!VerifyChecksum16(data, 2))
+        {
+            Logger.LogInfo<RudpConnection>("Handshake packet checksum failed. Disconnecting.");
+            Disconnect();
+            return;
         }
         
+        RudpMessage msg = _messagePool.Get();
+        msg.EncodeHandshake(sessionId, _secret, HashSalt);
+        _sendBuffer.Add(msg);
+
+        QueueAck(protocol, sequence);
+
+        Logger.LogDebug<RudpConnection>("Player has connected!");
+        
+        State = ConnectionState.WaitingForConnection;
+    }
+
+    private void HandleAck(PacketType ackingProtocol, uint sequence)
+    {
+        int index = _sendBuffer.FindIndex(x => x.Sequence == sequence && x.Protocol == ackingProtocol);
+        if (index < 0) return;
+
+        RudpMessage acked = _sendBuffer[index];
+        uint now = (uint)TimeHelper.LocalTime;
+
+        if (acked.SendCount == 1)
+        {
+            // Sent once: an unambiguous round trip
+            UpdateRoundTripTime(now - acked.FirstSendTime);
+            _backoff = 0;
+        }
+        else if (_hasRttSample && now - acked.Timestamp < _smoothedRtt / 2)
+        {
+            UpdateRoundTripTime(now - acked.FirstSendTime);
+            _spuriousSinceLog++;
+            _backoff = 0;
+        }
+        // Otherwise it was a real loss, recovered by the resend: keep the backoff until a clean measurement arrives
+
+        _sendBuffer.RemoveAt(index);
+        _messagePool.Return(acked);
+    }
+    private void ReceiveReliable(ArraySegment<byte> data, PacketType protocol, uint sequence)
+    {
+        bool isGamedata = protocol == PacketType.ReliableGameData;
+        uint expected = isGamedata ? _remoteGamedataSequence : _remoteSequence;
+
+        if (sequence < expected)
+        {
+            QueueAck(protocol, sequence);
+            return;
+        }
+
+        if (sequence > expected)
+        {
+            if (sequence - expected > MaxReorderAhead) return;
+
+            var early = isGamedata ? _earlyGamedata : _earlyNetcode;
+            if (!early.ContainsKey(sequence))
+            {
+                early[sequence] = data.ToArray();
+                _reorderedSinceLog++;
+            }
+            
+            if (EarlyAcks) QueueAck(protocol, sequence);
+            return;
+        }
+
+        QueueAck(protocol, sequence);
+        AdvanceRemoteSequence(isGamedata);
+        ProcessPacket(data);
+        ReleaseEarlyPackets(protocol);
+    }
+
+    private void ReleaseEarlyPackets(PacketType protocol)
+    {
+        bool isGamedata = protocol == PacketType.ReliableGameData;
+        var early = isGamedata ? _earlyGamedata : _earlyNetcode;
+
+        while (State != ConnectionState.Disconnected && early.Count > 0)
+        {
+            uint expected = isGamedata ? _remoteGamedataSequence : _remoteSequence;
+            if (!early.Remove(expected, out byte[]? packet)) break;
+
+            if (!EarlyAcks) QueueAck(protocol, expected);
+            AdvanceRemoteSequence(isGamedata);
+            ProcessPacket(new ArraySegment<byte>(packet));
+        }
+    }
+
+    private void AdvanceRemoteSequence(bool isGamedata)
+    {
+        if (isGamedata) _remoteGamedataSequence++;
+        else _remoteSequence++;
+    }
+
+    private void QueueAck(PacketType protocol, uint sequence)
+    {
+        _ackList.Add(new RudpAckRecord { Protocol = protocol, SequenceNumber = sequence });
+    }
+
+    private void ProcessPacket(ArraySegment<byte> data)
+    {
+        if (State == ConnectionState.Disconnected) return;
+
+        int offset = data.Offset;
+        byte[] buffer = data.Array!;
+        var protocol = (PacketType)buffer[offset++];
+
         if (protocol == PacketType.Handshake)
         {
             Logger.LogInfo<RudpConnection>(
@@ -305,7 +429,8 @@ public class RudpConnection : ConnectionBase
             offset += 1 + 2;
             offset += buffer.ReadUint16BE(offset, out ushort payloadBytes);
             offset += 2;
-            Service.OnData(this, new ArraySegment<byte>(buffer, offset, payloadBytes), protocol);
+            var unreliableMessage = new ArraySegment<byte>(buffer, offset, payloadBytes);
+            Service.OnData(this, unreliableMessage, protocol);
         }
         else if (protocol == PacketType.ReliableGameData)
         {
@@ -344,7 +469,8 @@ public class RudpConnection : ConnectionBase
 
             if (isGroupComplete)
             {
-                Service.OnData(this, new ArraySegment<byte>(_groupBuffer, 0, _groupOffset), protocol);
+                var reliableMessage = new ArraySegment<byte>(_groupBuffer, 0, _groupOffset);
+                Service.OnData(this, reliableMessage, protocol);
                 _groupOffset = 0;
                 _remoteGroupNumber++;
             }
@@ -353,11 +479,61 @@ public class RudpConnection : ConnectionBase
             Logger.LogInfo<RudpConnection>($"Unsupported protocol: {protocol}");
     }
 
+    private static readonly Dictionary<(PacketType, NetMessageType), int> s_messageCounts = new(); // can delete later
+    private static long s_lastMessageCountLog;
+
     private void EnsureGroupCapacity(int value)
     {
         if (_groupBuffer.Length >= value) return;
         int capacity = Math.Max(value, _groupBuffer.Length * 2);
         Array.Resize(ref _groupBuffer, capacity);
+    }
+
+    private void UpdateRoundTripTime(uint sample) // Based off of TCP protocol to help with slower connections and being more forgiving
+    {
+        if (!_hasRttSample)
+        {
+            _smoothedRtt = sample;
+            _rttVariance = sample / 2f;
+            _hasRttSample = true;
+        }
+        else
+        {
+            _rttVariance = 0.75f * _rttVariance + 0.25f * Math.Abs(_smoothedRtt - sample);
+            _smoothedRtt = 0.875f * _smoothedRtt + 0.125f * sample;
+        }
+        
+        float rto = _smoothedRtt + Math.Max(4 * _rttVariance, 200f);
+        _resendTimeout = Math.Clamp((int)rto, MinResendTime, MaxResendTime);
+    }
+
+    private void FillSendWindow()
+    {
+        if (_pendingSend.Count == 0) return;
+
+        int netcodeInFlight = 0, gamedataInFlight = 0;
+        foreach (RudpMessage m in _sendBuffer)
+        {
+            if (m.Protocol == PacketType.ReliableNetcodeData) netcodeInFlight++;
+            else if (m.Protocol == PacketType.ReliableGameData) gamedataInFlight++;
+        }
+
+        for (int i = 0; i < _pendingSend.Count;)
+        {
+            RudpMessage m = _pendingSend[i];
+            bool isNetcode = m.Protocol == PacketType.ReliableNetcodeData;
+            if ((isNetcode ? netcodeInFlight : gamedataInFlight) >= MaxInFlight)
+            {
+                i++;
+                continue;
+            }
+
+            if (isNetcode) netcodeInFlight++;
+            else gamedataInFlight++;
+            
+            _sendBuffer.Add(m);
+            _pendingSend.RemoveAt(i);
+        }
     }
 
     internal void Update()
@@ -371,14 +547,24 @@ public class RudpConnection : ConnectionBase
             return;
         }
 
+        FillSendWindow();
+
+        int timeout = Math.Min(_resendTimeout << _backoff, MaxResendTime);
+        int resends = 0;
+
         foreach (RudpMessage message in _sendBuffer)
         {
-            if (time - message.Timestamp < ResendTime) continue;
-            
-            
+            if (message.SendCount == 0) message.FirstSendTime = time;
+            else if (time - message.Timestamp < timeout) continue;
+            else resends++;
+
+            message.SendCount++;
             message.Timestamp = time;
             _server.Send(this, message.GetArraySegment());
         }
+
+        if (resends > 0 && _backoff < MaxBackoff) _backoff++;
+        _resendsSinceLog += resends;
 
         if (_ackList.Count > 0)
         {
@@ -394,6 +580,25 @@ public class RudpConnection : ConnectionBase
 
             _ackList.Clear();
         }
+
+        LogDiagnostics(time);
+    }
+
+    private void LogDiagnostics(uint time)
+    {
+        if (_resendsSinceLog == 0 && _reorderedSinceLog == 0 && _spuriousSinceLog == 0) return;
+        if (time - _lastDiagnosticsLog < DiagnosticsInterval) return;
+
+        Logger.LogDebug<RudpConnection>(
+            $"{Username} ({Endpoint}): {_resendsSinceLog} resent, {_spuriousSinceLog} unnecessary, " +
+            $"{_reorderedSinceLog} received out of order, " +
+            $"{_sendBuffer.Count} in flight, {_pendingSend.Count} queued, rtt {_smoothedRtt:0}ms, " +
+            $"timeout {Math.Min(_resendTimeout << _backoff, MaxResendTime)}ms");
+
+        _lastDiagnosticsLog = time;
+        _resendsSinceLog = 0;
+        _reorderedSinceLog = 0;
+        _spuriousSinceLog = 0;
     }
 
     public override void Send(ArraySegment<byte> data, PacketType protocol)
@@ -435,7 +640,8 @@ public class RudpConnection : ConnectionBase
 
         RudpMessage msg = _messagePool.Get();
         msg.EncodeReset(_localSequence++, _secret);
-        _sendBuffer.Add(msg);
+        _server.Send(this, msg.GetArraySegment());
+        _messagePool.Return(msg);
 
         if (State > ConnectionState.WaitingForConnection) Service.OnDisconnected(this);
 
@@ -470,7 +676,7 @@ public class RudpConnection : ConnectionBase
             else
                 msg.EncodeGamedata(groupNumber, _localGamedataSequence++, groupSize, slice, len == 0, HashSalt);
 
-            _sendBuffer.Add(msg);
+            _pendingSend.Add(msg);
         }
     }
 }

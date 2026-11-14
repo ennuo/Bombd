@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Xml.Serialization;
 using Bombd.Types.Network.Room;
+using System.Xml;
 
 namespace Bombd.Types.Network.Simulation;
 
@@ -24,6 +25,7 @@ public class PlayerState
     [XmlAttribute("mic")] public int Mic;
     [XmlAttribute("styleDrift")] public float KartHandlingDrift;
     [XmlAttribute("styleAccel")] public float KartSpeedAccel;
+    [XmlAnyAttribute] public XmlAttribute[]? UnknownAttributes; //adding some logging to see what clients send and dont hear back from the server
 
     public bool HasNameUid => NameUid != 0;
     
@@ -48,6 +50,9 @@ public class PlayerState
         Mic = state.Mic;
         KartHandlingDrift = state.KartHandlingDrift;
         KartSpeedAccel = state.KartSpeedAccel;
+
+        if (state.UnknownAttributes != null)
+            UnknownAttributes = state.UnknownAttributes;
     }
     
     public override string ToString()

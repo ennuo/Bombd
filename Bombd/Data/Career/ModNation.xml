@@ -30,14 +30,13 @@
         <Track name="T2_Upheaval" id="310" class="fastest" />
         <Track name="T4_OverVolcano" id="303" class="fastest" />
         <Track name="T1_ModFinale" id="302" class="fastest" />
-        <Track name="T4_MotoIsland" id="294" class="fastest" />
-        <Track name="T4_TempleOfTiki" id="292" class="fastest" />
-        <Track name="T4_RumbleIsland" id="297" class="fastest" />
         <Track name="T5_GREATWALL" id="628" class="faster" />
         <Track name="T5_HIDDENFOREST" id="629" class="faster" />
         <Track name="T5_CHINATOWN" id="627" class="faster" />
         <Track name="T5_TERRACEDDROP" id="626" class="faster" />
+        <Track name="T5_MONSOONEDGE" id="630" class="faster" />
         <Track name="T5_FORTRESS" id="631" class="faster" />
+        <Track name="T5_IMPERIALGARDENS" id="632" class="faster" />
         <Track name="T6_SNOWSTORMCITY" id="602" class="faster" />
         <Track name="T6_DOWNHILLPEAK" id="597" class="faster" />
         <Track name="T6_ICEBERGEDGE" id="624" class="fastest" />

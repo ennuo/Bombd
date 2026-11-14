@@ -59,16 +59,17 @@ public class NetArbitrationServer(Action<ItemNode, ItemAcquirerNode> onReleaseNo
             return false;
         }
 
-        if (item.Acquirers.Count > 0 && item.AcquireBehavior == AcquireBehavior.SingleAcquire)
-        {
-            Logger.LogDebug<NetArbitrationServer>($"NetItem acquire fail, acquired by another player, 0x{id:x8}, player 0x{player:x8}");
-            return false;
-        }
-        
         ItemAcquirerNode? node = item.Acquirers.FirstOrDefault(node => node.Uid == player);
         if (node != null)
         {
-            Logger.LogDebug<NetArbitrationServer>($"NetItem fail, already acquired, 0x{id:x8}, player 0x{player:x8}");
+            // try sending the item confirmation first instead of failing, helps with our answer being too slow to them
+            Logger.LogDebug<NetArbitrationServer>($"NetItem already acquired by this player, confirming again, 0x{id:x8}, player 0x{player:x8}");
+            return true;
+        }
+
+        if (item.Acquirers.Count > 0 && item.AcquireBehavior == AcquireBehavior.SingleAcquire)
+        {
+            Logger.LogDebug<NetArbitrationServer>($"NetItem acquire fail, acquired by another player, 0x{id:x8}, player 0x{player:x8}");
             return false;
         }
         
