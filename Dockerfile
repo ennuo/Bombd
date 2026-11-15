@@ -20,14 +20,14 @@ RUN gosu nobody true
 
 # Download OpenSSL 
 ENV OPENSSL_VERSION="3.5.9"
-RUN wget --quiet --no-check-certificate "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
+RUN wget --quiet https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz
 RUN tar -xf openssl-${OPENSSL_VERSION}.tar.gz
 RUN rm openssl-${OPENSSL_VERSION}.tar.gz
 WORKDIR /openssl-${OPENSSL_VERSION}
 # Build and configure OpenSSL for SSLv3
 RUN ./Configure enable-weak-ssl-ciphers enable-ssl3 enable-ssl3-method --libdir=lib
-RUN make
-RUN make install
+RUN make -j"$(nproc)"
+RUN make install_sw
 # Destroy build files
 WORKDIR /
 RUN rm -rf /openssl-${OPENSSL_VERSION}
